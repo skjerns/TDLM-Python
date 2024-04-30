@@ -23,8 +23,10 @@ if __name__=='__main__':
 
     seq = 'ABCDE'
     tf = tdlm.utils.seq2tf(seq, n_states=8)
+    tb = tf.T
     np.random.seed(0)
-    res = tdlm.compute_1step(preds, tf, n_shuf=100, max_lag=50, cross_corr=False)
+    res = tdlm.compute_1step(preds, tf, tb=tb, n_shuf=100, max_lag=50, 
+                             cross_corr=True)
     seq_fwd, seq_bkw, seq_fwd_corr, seq_bkw_corr = res
-    tdlm.plotting.plot_sequenceness(seq_fwd, seq_bkw)
-    tdlm.plotting.plot_sequenceness(seq_fwd_corr, seq_bkw_corr)
+    tdlm.plotting.plot_sequenceness(seq_fwd, seq_bkw, rescale=False)
+    tdlm.plotting.plot_sequenceness(seq_fwd_corr, seq_bkw_corr, rescale=False)
