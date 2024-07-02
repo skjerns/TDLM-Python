@@ -14,6 +14,5 @@ setup(name='tdlm-python',
       zip_safe=False,
       classifiers=[
           "Programming Language :: Python :: 3",
-          "License :: OSI Approved :: GPLv4",
           "Operating System :: OS Independent",
       ],)

@@ -2,13 +2,38 @@
 """
 Created on Wed Mar 27 15:10:07 2024
 
-core functions for Temporally Delayed Linear Modelling
+util functions for Temporally Delayed Linear Modelling
 
 @author: simon.kern
 """
-
+import hashlib
 import math
 import numpy as np
+import pandas as pd
+
+def hash_array(arr, dtype=np.int64, truncate=8):
+    """
+    create a persistent hash for a numpy array based on the byte representation
+    only the last `truncate` (default=8) characters are returned for simplicity
+
+    Parameters
+    ----------
+    arr : np.ndarray
+        DESCRIPTION.
+    dtype : type, optional
+        which data type to use. smaller type will be faster. 
+        The default is np.int64.
+
+    Returns
+    -------
+    str
+        unique hash for that array.
+
+    """
+    arr = arr.astype(dtype)
+    sha1_hash = hashlib.sha1(arr.flatten("C")).hexdigest()
+    return sha1_hash[:truncate]
+
 
 def unique_permutations(X, k=None):
     """
@@ -191,3 +216,181 @@ def seq2TF_2step(seq, n_states=None):
     df = df.set_index('index')
     TF2 = df.loc[~(df==0).all(axis=1)]
     return TF2
+
+
+def simulate_eeg_resting_state(n_samples, alpha_freq=10.0, alpha_strength=1.0,
+                               noise=1.0, n_channels=64):
+    raise NotImplementedError()
+    
+def simulate_eeg_localizer(n_samples, n_classes, noise=1.0, n_channels=64):
+    raise NotImplementedError()
+
+def insert_events(data, insert_data, insert_labels, sequence, n_events, 
+                  lag=7, jitter=0, n_steps=2, distribution='constant',
+                  return_onsets=False):
+    """
+    inject decodable events into M/EEG data according to a certain pattern.
+
+
+    Parameters
+    ----------
+    data : TYPE
+        DESCRIPTION.
+    insert_data : TYPE
+        DESCRIPTION.
+    insert_labels : TYPE
+        DESCRIPTION.
+    lag : TYPE, optional
+        Sample space distance individual reactivation events events. 
+        The default is 7 (e.g. 70 ms replay speed time lag).
+    jitter : int, optional
+        By how many sample points to jitter the events (randomly). 
+        The default is 0.
+    n_steps : int, optional
+        Number of events to insert. The default is 2
+    distribution : str | np.ndarray, optional
+        How replay events should be distributed throughout the time series.
+        Can either be 'constant', 'increasing' or 'decreasing' or a p vector
+        with probabilities for each sample point in data.
+        The default is 'constant'.
+
+    Raises
+    ------
+    ValueError
+        DESCRIPTION.
+    Exception
+        DESCRIPTION.
+
+    Returns
+    -------
+    data : np.ndarray (shape=data.shape)
+        data with inserted events.
+    """
+    import logging
+    assert len(insert_data) == len(insert_labels), 'each data point must have a label'
+    assert insert_data.ndim in [2, 3]
+    assert insert_labels.ndim == 1
+    assert data.ndim==2
+    assert data.shape[1] == insert_data.shape[1]
+    
+    if isinstance(distribution, np.ndarray):
+        assert len(distribution) == len(data)
+        assert distribution.ndim == 1
+        assert np.isclose(distribution.sum(), 1), 'Distribution must sum to 1, but {distribution.sum()=}'
+
+    # convert data to 3d
+    if insert_data.ndim==2:
+        insert_data = insert_data.reshape([*insert_data.shape, 1])   
+    
+    # get reproducible seed
+    seed = int(''.join(([str(x) if x.isdigit() else str(ord(x)) for x in hash_array(data)])))
+    np.random.seed(seed)
+
+    # Define default parameters for replay generation
+    # defaults = {'dist':7,
+    #             'n_events':250,
+    #             'tp':31,
+    #             'seqlen':3,
+    #             'direction':'fwd',
+    #             'distribution':'constant',
+    #             'trange': 0}
+
+    # Extract parameters for further use
+    # trange = params['trange']
+
+    # Calculate mean values that should be inserted per class
+    class_mean = []
+    for label in set(insert_labels):
+        class_mean += [insert_data[insert_labels==label, :, :].mean(0)]
+    class_mean = np.stack(class_mean)
+   
+    # Calculate probability distribution based on the specified distribution type
+    if distribution=='constant':
+        p = np.ones(len(data))
+        p = p/p.sum()
+    elif distribution=='decreasing':
+        p = np.linspace(1, 0, len(data))**2
+        p = p/p.sum()
+    elif distribution=='increasing':
+        p = np.linspace(0, 1, len(data))**2
+        p = p/p.sum()
+    else:
+        raise Exception(f'unknown distribution {distribution}')
+
+    # Calculate length of the replay sequence
+    padding = n_steps*lag + data.shape[-1]
+    p[-padding:] = 0  # can't insert events starting here, would be too long
+    p = p/p.sum()
+
+    replay_start_idxs = []
+    all_idx = np.arange(len(data))
+    
+    # iteratively select starting index for replay event 
+    # such that replay events are not overlapping
+    for i in range(n_events):
+        np.random.choice(all_idx, p=p)
+        
+        # next set all indices of p to zero where events will be inserted
+        # this way we can prevent overlap of replay event trains
+        # Find available indices where events can be inserted
+        available_indices = np.where(p > 0)[0]
+
+        # Ensure that there are enough available indices to choose from
+        if len(available_indices) < n_events - i:
+            raise ValueError(f"Not enough available indices to insert all events without overlap, {n_events=} too high")
+
+        # Choose a random index from the available indices
+        start_idx = np.random.choice(all_idx, p=p)
+
+        # this is the calculated end index
+        end_idx = start_idx + lag * n_steps + insert_data.shape[-1]
+        assert end_idx<len(p)
+        # Update the p array to zero out the region around the chosen index to prevent overlap
+        p[start_idx:end_idx] = 0
+        
+        # normalize to create valid probability distribution 
+        p = p/p.sum()  
+
+        # Append the chosen index to the list of starting indices
+        replay_start_idxs.append(start_idx)
+        
+    data_sim = data.copy()  # work on copy of array to prevent mutable changes
+    
+    # save data about inserted events here and return if requested
+    events = {'idx': [], 
+              'pos': [],
+              'step': [],
+              'class_idx': [],
+              'span': [],
+              'jitter': []}
+    
+    for idx,  start_idx in enumerate(replay_start_idxs):
+        smp_jitter = 0  # starting with no jitter
+        pos = start_idx  # pos indicates where in data we insert the next event
+        
+        # choose the starting class such that the n_steps can actually be taken
+        # at that position to finish the sequence without looping to beginning
+        seq_i = np.random.choice(np.arange(len(sequence)-n_steps))
+        for step in range(n_steps+1):
+            # choose which item should be inserted based on sequence order
+            class_idx = sequence[seq_i] 
+            data_sim[pos:pos+class_mean.shape[-1], :] += class_mean[class_idx].T
+            logging.debug(f'{start_idx=} {pos=} {class_idx=}')
+            
+            events['idx'] += [idx]
+            events['pos'] += [pos]
+            events['step'] += [step]
+            events['class_idx'] += [class_idx]
+            events['span'] += [class_mean.shape[-1]]
+            events['jitter'] += [smp_jitter]
+            
+            # increment pos to select position of next reactivation event
+            smp_jitter = np.random.randint(-jitter, jitter+1) if jitter else 0
+            pos += lag + smp_jitter  # add next sequence step
+            seq_i += 1  # increment sequence id for next step
+            
+    if return_onsets:
+        df_onsets = pd.DataFrame(events)
+        return (data_sim, df_onsets) 
+    
+    return data_sim

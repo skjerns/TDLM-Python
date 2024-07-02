@@ -11,12 +11,11 @@ python package for matlab must be installed
 import logging
 
 import numpy as np
-from mat73 import loadmat as loadmat73
 from scipy.io import loadmat
 from sklearn.linear_model._base import LinearModel
 
 
-def get_matlab_engine(seed=0):
+def get_matlab_engine(seed=1):
     """
     get a reference to a MATLAB engine.
     If a matlab engine has been called within this session, it is reused.
@@ -24,6 +23,7 @@ def get_matlab_engine(seed=0):
     import matlab
     if not '_MATLAB_ENGINE_REF' in matlab.__dict__: # this is hacky, I know
         import matlab.engine
+        print('Starting MATLAB engine')
         ml = matlab.engine.start_matlab()
         ml.rng(seed) # set seed
         matlab._MATLAB_ENGINE_REF = ml
@@ -39,6 +39,7 @@ def compare_mat(mat_file, vardict):
         2. run equivalent function in python
         3. execute function with compare_mat('workspace.mat', locals())
     """
+    from mat73 import loadmat as loadmat73
     try:
         data = loadmat73(mat_file)
     except TypeError:
@@ -141,8 +142,8 @@ class MATLABLasso(LinearModel):
     def predict_proba(self, *args, **kwargs):
         return self.predict(*args, **kwargs)
             
-    def predict(self, *args, **kwargs):
-        return self.predict_proba(*args, **kwargs).argmax(-1)
+    # def predict(self, *args, **kwargs):
+        # return self.predict_proba(*args, **kwargs).argmax(-1)
 
 @autoconvert
 def lassoglm(data_x, data_y, *args, **kwargs):
