@@ -1,0 +1,7 @@
+joblib
+matplotlib
+numba
+numpy
+pandas
+scipy
+seaborn
