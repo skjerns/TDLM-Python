@@ -135,7 +135,7 @@ def sequenceness_crosscorr(preds, tf, tb=None, n_shuf=1000, min_lag=0, max_lag=5
 
 # @profile
 def compute_1step(preds, tf, tb=None, n_shuf=1000, min_lag=0, max_lag=50, 
-                  alpha_freq=None,  cross_corr=False, n_jobs=-1):
+                  alpha_freq=None, n_jobs=-1):
     """
     Calculate 1-step-sequenceness for probability estimates and transitions.
 
@@ -163,9 +163,6 @@ def compute_1step(preds, tf, tb=None, n_shuf=1000, min_lag=0, max_lag=50,
     n_steps : int, optional
         number of transition steps to look for. Not implemented yet. 
         The default is 1.
-    cross_corr : bool, optional
-        Additionally to GLM analysis, perform cross correlation.
-        The default is False.
     n_jobs : int, optional
         Number of parallel cores to use for some of the sub-analysis.
         The default is 1.

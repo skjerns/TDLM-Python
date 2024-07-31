@@ -138,3 +138,4 @@ def plot_sequenceness(seq_fwd, seq_bkw, sfreq=100, ax=None, title=None,
     ax.grid(axis='x', linewidth=1, which='both', alpha=0.3)
     fig.tight_layout()
     return ax
+

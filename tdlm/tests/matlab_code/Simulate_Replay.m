@@ -16,7 +16,7 @@ cTime = 0:10:maxLag*10; % the milliseconds of each cross-correlation time lag
 nSubj = 24; % number of subjects to simulate
 gamA = 10;
 gamB = 0.5;% parameters for the gamma distribution of intervals between states in a sequence
-[~, pInds] = uperms([1:8],29);
+[~, pInds] = uperms([1:8], 100);
 uniquePerms=pInds;
 nShuf = size(uniquePerms,1);
 samplerate=100;
@@ -26,7 +26,7 @@ sf = cell(nSubj,1);  sb = cell(nSubj,1);
 sf2 = cell(nSubj,1);  sb2 = cell(nSubj,1);
 
 %% Core function
-parfor iSj = 1:nSubj
+for iSj = 1:1
     sf{iSj} = nan(1, nShuf, maxLag+1);
     sb{iSj} = nan(1, nShuf, maxLag+1);
       
@@ -109,7 +109,7 @@ parfor iSj = 1:nSubj
     end
 
     preds=preds+0.05*coreP;    
-
+    
     %% calculate sequenceness 
     for iShuf = 1:nShuf
         rp = uniquePerms(iShuf,:);  % use the 30 unique permutations (is.nShuf should be set to 29)
@@ -164,6 +164,9 @@ sb = cell2mat(sb);
 sf2 = cell2mat(sf2);
 sb2 = cell2mat(sb2);
 
+
+save('simulate_replay_results.mat', 'uniquePerms','TF', 'preds', 'sf', 'sb', 'sf2', 'sb2',  '-v7.3');
+stop % dont plot, just save intermediate results
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 figure, 
 

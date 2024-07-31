@@ -16,7 +16,7 @@ nSubj = 24; % number of subjects to simulate
 gamA = 10;
 gamB = 0.5;% parameters for the gamma distribution of intervals between states in a sequence
 nstates=8;
-[~, pInds] = uperms([1:nstates],29);
+[~, pInds] = uperms([1:nstates], 100);
 uniquePerms=pInds;
 nShuf = size(uniquePerms,1);
 samplerate=100;
@@ -27,7 +27,7 @@ sf = cell(nSubj,1);  sb = cell(nSubj,1);
 sf2 = cell(nSubj,1);  sb2 = cell(nSubj,1);
 
 %% Core function
-parfor iSj = 1:nSubj
+for iSj = 1:1
     sf{iSj} = nan(1, nShuf, maxLag+1);
     sb{iSj} = nan(1, nShuf, maxLag+1);
       
@@ -147,7 +147,8 @@ sb = cell2mat(sb);
 
 sf2 = cell2mat(sf2);
 sb2 = cell2mat(sb2);
-
+save('simulate_replay_withalpha_results.mat', 'uniquePerms','TF', 'preds', 'sf', 'sb', 'sf2', 'sb2',  '-v7.3');
+stop % dont continue figure creation, only save results
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 figure, 
 
