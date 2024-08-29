@@ -21,7 +21,7 @@ def hash_array(arr, dtype=np.int64, truncate=8):
     arr : np.ndarray
         DESCRIPTION.
     dtype : type, optional
-        which data type to use. smaller type will be faster. 
+        which data type to use. smaller type will be faster.
         The default is np.int64.
 
     Returns
@@ -221,13 +221,13 @@ def seq2TF_2step(seq, n_states=None):
 def simulate_eeg_resting_state(n_samples, alpha_freq=10.0, alpha_strength=1.0,
                                noise=1.0, n_channels=64):
     raise NotImplementedError()
-    
+
 def simulate_eeg_localizer(n_samples, n_classes, noise=1.0, n_channels=64):
     raise NotImplementedError()
 
-def insert_events(data, insert_data, insert_labels, sequence, n_events, 
-                  lag=7, jitter=0, n_steps=2, distribution='constant',
-                  return_onsets=False):
+
+def insert_events(data, insert_data, insert_labels, sequence, n_events,
+                  lag=7, jitter=0, n_steps=2,  distribution='constant', return_onsets=False):
     """
     inject decodable events into M/EEG data according to a certain pattern.
 
@@ -236,15 +236,20 @@ def insert_events(data, insert_data, insert_labels, sequence, n_events,
     ----------
     data : TYPE
         DESCRIPTION.
-    insert_data : TYPE
-        DESCRIPTION.
-    insert_labels : TYPE
-        DESCRIPTION.
+    insert_data : np.ndarray
+        data that should be inserted. Length must be the same as insert_labels.
+        Must be 2D, with the second dimension being the sensor dimension.
+        If insert_data is 3D, last dimension is taken as a time dimension
+    insert_labels : np.ndarray
+        list of class labels/ids for the insert_data.
+    mean_class: bool
+        insert the mean of the class if True, else insert a random single event
+        from insert_data.
     lag : TYPE, optional
-        Sample space distance individual reactivation events events. 
+        Sample space distance individual reactivation events events.
         The default is 7 (e.g. 70 ms replay speed time lag).
     jitter : int, optional
-        By how many sample points to jitter the events (randomly). 
+        By how many sample points to jitter the events (randomly).
         The default is 0.
     n_steps : int, optional
         Number of events to insert. The default is 2
@@ -266,13 +271,17 @@ def insert_events(data, insert_data, insert_labels, sequence, n_events,
     data : np.ndarray (shape=data.shape)
         data with inserted events.
     """
+    if isinstance(insert_labels, list):
+        insert_labels = np.array(insert_labels)
+    if isinstance(insert_data, list):
+        insert_data = np.array(insert_data)
     import logging
     assert len(insert_data) == len(insert_labels), 'each data point must have a label'
     assert insert_data.ndim in [2, 3]
     assert insert_labels.ndim == 1
     assert data.ndim==2
     assert data.shape[1] == insert_data.shape[1]
-    
+
     if isinstance(distribution, np.ndarray):
         assert len(distribution) == len(data)
         assert distribution.ndim == 1
@@ -280,8 +289,8 @@ def insert_events(data, insert_data, insert_labels, sequence, n_events,
 
     # convert data to 3d
     if insert_data.ndim==2:
-        insert_data = insert_data.reshape([*insert_data.shape, 1])   
-    
+        insert_data = insert_data.reshape([*insert_data.shape, 1])
+
     # get reproducible seed
     seed = int(''.join(([str(x) if x.isdigit() else str(ord(x)) for x in hash_array(data)])))
     np.random.seed(seed)
@@ -295,15 +304,6 @@ def insert_events(data, insert_data, insert_labels, sequence, n_events,
     #             'distribution':'constant',
     #             'trange': 0}
 
-    # Extract parameters for further use
-    # trange = params['trange']
-
-    # Calculate mean values that should be inserted per class
-    class_mean = []
-    for label in set(insert_labels):
-        class_mean += [insert_data[insert_labels==label, :, :].mean(0)]
-    class_mean = np.stack(class_mean)
-   
     # Calculate probability distribution based on the specified distribution type
     if distribution=='constant':
         p = np.ones(len(data))
@@ -324,12 +324,10 @@ def insert_events(data, insert_data, insert_labels, sequence, n_events,
 
     replay_start_idxs = []
     all_idx = np.arange(len(data))
-    
-    # iteratively select starting index for replay event 
+
+    # iteratively select starting index for replay event
     # such that replay events are not overlapping
     for i in range(n_events):
-        np.random.choice(all_idx, p=p)
-        
         # next set all indices of p to zero where events will be inserted
         # this way we can prevent overlap of replay event trains
         # Find available indices where events can be inserted
@@ -347,50 +345,59 @@ def insert_events(data, insert_data, insert_labels, sequence, n_events,
         assert end_idx<len(p)
         # Update the p array to zero out the region around the chosen index to prevent overlap
         p[start_idx:end_idx] = 0
-        
-        # normalize to create valid probability distribution 
-        p = p/p.sum()  
+
+        # normalize to create valid probability distribution
+        p = p/p.sum()
 
         # Append the chosen index to the list of starting indices
         replay_start_idxs.append(start_idx)
-        
+
     data_sim = data.copy()  # work on copy of array to prevent mutable changes
-    
+
     # save data about inserted events here and return if requested
-    events = {'idx': [], 
+    events = {'idx': [],
               'pos': [],
               'step': [],
               'class_idx': [],
               'span': [],
               'jitter': []}
-    
+
     for idx,  start_idx in enumerate(replay_start_idxs):
         smp_jitter = 0  # starting with no jitter
         pos = start_idx  # pos indicates where in data we insert the next event
-        
+
         # choose the starting class such that the n_steps can actually be taken
         # at that position to finish the sequence without looping to beginning
         seq_i = np.random.choice(np.arange(len(sequence)-n_steps))
         for step in range(n_steps+1):
             # choose which item should be inserted based on sequence order
-            class_idx = sequence[seq_i] 
-            data_sim[pos:pos+class_mean.shape[-1], :] += class_mean[class_idx].T
+            class_idx = sequence[seq_i]
+            # or take a single event (more noisy)
+            data_class = insert_data[insert_labels==class_idx]
+            idx_cls_i = np.random.choice(np.arange(len(data_class)))
+            insert_data_i = data_class[idx_cls_i]
+            assert insert_data_i.ndim==2
+
+            # time spans of the segments we want to insert
+            t = insert_data_i.shape[-1]
+
+            data_sim[pos-t//2:pos+1+t//2, :] += insert_data_i.T
             logging.debug(f'{start_idx=} {pos=} {class_idx=}')
-            
+
             events['idx'] += [idx]
             events['pos'] += [pos]
             events['step'] += [step]
             events['class_idx'] += [class_idx]
-            events['span'] += [class_mean.shape[-1]]
+            events['span'] += [insert_data_i.shape[-1]]
             events['jitter'] += [smp_jitter]
-            
+
             # increment pos to select position of next reactivation event
             smp_jitter = np.random.randint(-jitter, jitter+1) if jitter else 0
             pos += lag + smp_jitter  # add next sequence step
             seq_i += 1  # increment sequence id for next step
-            
+
     if return_onsets:
         df_onsets = pd.DataFrame(events)
-        return (data_sim, df_onsets) 
-    
+        return (data_sim, df_onsets)
+
     return data_sim
