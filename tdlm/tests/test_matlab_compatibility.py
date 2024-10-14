@@ -33,7 +33,7 @@ def uperms_matlab(*args, **kwargs):
 
 class TestMatlab(unittest.TestCase):
 
-    def test_uperms(selfs):
+    def test_uperms(self):
         """"call uperms function from MATLAB for testing"""
         print('Starting matlab engine')
 
