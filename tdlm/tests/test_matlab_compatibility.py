@@ -33,7 +33,7 @@ def uperms_matlab(*args, **kwargs):
 
 class TestMatlab(unittest.TestCase):
 
-    def test_uperms(selfs):
+    def test_uperms(self):
         """"call uperms function from MATLAB for testing"""
         print('Starting matlab engine')
 
@@ -41,7 +41,7 @@ class TestMatlab(unittest.TestCase):
         if not 'matlab_code' in ml.cd():
             ml.cd('./matlab_code')        
 
-        #TODO test doesnt work, but I have no time to debug 
+        #TODO test doesn't work, but I have no time to debug 
         repetitions = 15  # no k set
         with patch('numpy.random.permutation', lambda x: np.array(ml.randperm(x)).squeeze()-1): 
             for i in tqdm(list(range(1, repetitions)), desc='Running tests 1/2'):
@@ -161,7 +161,7 @@ class TestMatlab(unittest.TestCase):
         """test whether the results of Simulate_Replay.m are the same
         
         this only tests the actual sequenceness calculation. it makes
-        no sense to compare the predictions themselve, as matlab and python
+        no sense to compare the predictions themselves, as matlab and python
         implement Lasso regression differently. However, uperms is slightly
         differently implemented, so we need to monkey patch that.
         """

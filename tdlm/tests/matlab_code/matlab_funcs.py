@@ -93,7 +93,7 @@ def autoconvert(func):
     try:
         import matlab
     except Exception:
-        logging.error("Matlab for Python isnt installed in this distribution")
+        logging.error("Matlab for Python isn't installed in this distribution")
         return None
     matlab.float64 = matlab.double
     matlab.float32 = matlab.double

@@ -5,7 +5,7 @@
 %   parameter "errors" passed first.
 %
 %   Parameters:
-%   errors - the errors to be plotted (extra dimension used if assymetric)
+%   errors - the errors to be plotted (extra dimension used if asymmetric)
 %   varargin - parameters as passed to conventional bar plot
 %   See bar and errorbar documentation for more details.
 %
@@ -50,13 +50,13 @@
 %   24/02/2011  Martina F. Callaghan    Created
 %   12/08/2011  Martina F. Callaghan    Updated for random x-values   
 %   24/10/2011  Martina F. Callaghan    Updated for asymmetric errors
-%   15/11/2011  Martina F. Callaghan    Fixed bug for assymetric errors &
+%   15/11/2011  Martina F. Callaghan    Fixed bug for asymmetric errors &
 %                                       vector plots
 %   14/06/2013  Martina F. Callaghan    Returning handle as recommended by
 %                                       Eric (see submission comments)
 %   08/07/2013  Martina F. Callaghan    Only return handle if requested.
 %   18/07/2013  Martina F. Callaghan    Bug fix for single group data that 
-%                                       allows assymetric errors.
+%                                       allows asymmetric errors.
 %                                       Also removed dot from display as
 %                                       per Charles Colin comment. The 
 %                                       handle can be returned to control
@@ -92,7 +92,7 @@ else
 end
 
 % If an extra dimension is supplied for the errors then they are
-% assymetric split out into upper and lower:
+% asymmetric split out into upper and lower:
 if ndims(errors) == ndims(values)+1
     lowerErrors = errors(:,:,1);
     upperErrors = errors(:,:,2);
@@ -105,7 +105,7 @@ else
 end
 
     
-% Check that the size of "errors" corresponsds to the size of the y-values.
+% Check that the size of "errors" corresponds to the size of the y-values.
 % Arbitrarily using lower errors as indicative.
 if any(size(values) ~= size(lowerErrors))
     error('The values and errors have to be the same length')

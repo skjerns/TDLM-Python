@@ -43,7 +43,7 @@ parfor iSj = 1:nSubj
     
     %% generate the true patterns
     commonPattern = randn(1,nSensors);    
-    patterns =  repmat(commonPattern, [8 1]) + randn(8, nSensors); % this induce correlations between classifers, for seperate representation: randn(8, nSensors);
+    patterns =  repmat(commonPattern, [8 1]) + randn(8, nSensors); % this induce correlations between classifiers, for separate representation: randn(8, nSensors);
    
     %% make training data
     trainingData = 4*randn(nNullExamples+8*nTrainPerStim, nSensors) + [zeros(nNullExamples,nSensors); ...

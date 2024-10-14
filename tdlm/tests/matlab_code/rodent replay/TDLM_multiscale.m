@@ -1,8 +1,8 @@
 function [Seq_integrate, Seq_separate]=TDLM_multiscale(X, rateMaps, binSize, nshuf, nlags)
 
 % INPUT
-% X          - candinate replay evernts, ntime (concatenated) * ncells
-% rateMaps   - raw rate maps, ncells * npos (this inlcudes both inbound and outbound)  
+% X          - candidate replay evernts, ntime (concatenated) * ncells
+% rateMaps   - raw rate maps, ncells * npos (this includes both inbound and outbound)  
 % binSize    - temporal bin size, in s, so 0.001 -> 1ms
 % nShuf      - number of nShufs
 % nlags      - number of time lags to test
@@ -13,8 +13,8 @@ function [Seq_integrate, Seq_separate]=TDLM_multiscale(X, rateMaps, binSize, nsh
 
 ratemap=[];
 
-%% scale and corrsponding time lags to average (hard coded for now)
-scales=[24,12,8,6]; % numnber of states, higher number indciates higher spatial resolution
+%% scale and corresponding time lags to average (hard coded for now)
+scales=[24,12,8,6]; % number of states, higher number indicates higher spatial resolution
 ntimes={[1:100];[2:2:200];[3:3:300];[4:4:400]}; % corresponding time lags (range) of interest: 1-100 ms
 
 %% make the rate map in different scales - for marginalize over in-, out-bound
