@@ -4,6 +4,6 @@ analysis code for hippocampal spiking data during sleep using TDLM, data from Ó
 ## multi-scale TDLM for a range of replay speed
 ``` RodentReplay_onlySeq_All.m ```
 
-## explictly modelling time in multi-scale TDLM
+## explicitly modelling time in multi-scale TDLM
 
 ``` RodentReplay_SleepTime_All.m ```

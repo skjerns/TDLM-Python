@@ -1,7 +1,7 @@
 function Pr = placeBayes(X, rateMaps, binsize)
 
 % INPUT
-% X - candiate event to be decoded, ntime * ncells, each entry is the spike counts
+% X - candidate event to be decoded, ntime * ncells, each entry is the spike counts
 % rateMaps - rate maps, ncells * npos
 % binSize, in the unit of s, this is tau in the equation
 

@@ -1,5 +1,7 @@
 # TDLM-Python
 
+[![Codespell](https://github.com/skjerns/TDLM-Python/actions/workflows/codespell.yml/badge.svg)](https://github.com/skjerns/TDLM-Python/actions/workflows/codespell.yml)
+
 This repository provides a Python implementation of [TDLM](https://github.com/YunzheLiu/TDLM).
 
    \- Work-in-Progress -
