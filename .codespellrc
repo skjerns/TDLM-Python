@@ -1,0 +1,4 @@
+[codespell]
+# reference: https://github.com/codespell-project/codespell#using-a-config-file
+skip = .git,.codespellrc,./tdlm/tests/matlab_code
+# ignore-words-list = 
