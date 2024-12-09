@@ -1,3 +1,0 @@
-[submodule "tdlm/tests/matlab"]
-	path = tdlm/tests/matlab_code
-	url = git@github.com:YunzheLiu/TDLM.git
