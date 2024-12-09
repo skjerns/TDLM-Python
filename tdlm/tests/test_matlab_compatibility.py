@@ -41,7 +41,6 @@ class TestMatlab(unittest.TestCase):
         if not 'matlab_code' in ml.cd():
             ml.cd('./matlab_code')
 
-        #TODO test doesn't work, but I have no time to debug
         repetitions = 15  # no k set
         with patch('numpy.random.permutation', lambda x: np.array(ml.randperm(x)).squeeze()-1):
             for i in tqdm(list(range(1, repetitions)), desc='Running tests 1/2'):

@@ -51,7 +51,7 @@ def _find_betas(preds: np.ndarray, n_states: int, max_lag: int, alpha_freq=None)
 
     for ilag in list(range(bins)):
         # create individual GLMs for each time lagged version
-        ilag_idx = np.arange(0, n_states * max_lag, bins) + ilag +1;
+        ilag_idx = np.arange(0, n_states * max_lag, bins) + ilag;
         # add a vector of ones for controlling the regression
         ilag_X = np.pad(dm[:, ilag_idx], [[0, 0], [0, 1]], constant_values=1)
 
