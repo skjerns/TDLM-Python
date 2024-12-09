@@ -10,6 +10,7 @@ import hashlib
 import math
 import numpy as np
 import pandas as pd
+from numpy.linalg import pinv, eigh
 
 def hash_array(arr, dtype=np.int64, truncate=8):
     """
@@ -218,9 +219,58 @@ def seq2TF_2step(seq, n_states=None):
     return TF2
 
 
-def simulate_eeg_resting_state(n_samples, alpha_freq=10.0, alpha_strength=1.0,
-                               noise=1.0, n_channels=64):
-    raise NotImplementedError()
+def simulate_eeg_resting_state(length, sfreq, n_channels=64, cov=None):
+    """
+    Simulate EEG resting-state data.
+
+    Parameters:
+    - length: float
+        Total duration of the signal in seconds.
+    - sfreq: float
+        Sampling frequency in Hz (samples per second).
+    - n_channels: int, optional
+        Number of EEG channels (default is 64).
+    - cov: numpy.ndarray, optional
+        Covariance matrix of shape (n_channels, n_channels).
+        If None, a random covariance matrix is generated.
+
+    Returns:
+    - eeg_data: numpy.ndarray
+        Simulated EEG data of shape (n_samples, n_channels).
+    """
+    n_samples = int(length * sfreq)  # Total number of samples
+
+    # If covariance matrix is not provided, generate a random one
+    if cov is None:
+        # Generate a random symmetric covariance matrix
+        A = np.random.randn(n_channels, n_channels)
+        symA = (A + A.T) / 2  # Symmetrize to make it symmetric
+        # Eigen decomposition to ensure positive semi-definite
+        eigenvalues, eigenvectors = np.linalg.eigh(symA)
+        # Adjust eigenvalues to be positive
+        eigenvalues = np.abs(eigenvalues) + 0.1
+        cov = eigenvectors @ np.diag(eigenvalues) @ eigenvectors.T
+    else:
+        n_channels = len(cov)
+
+    # Initialize the EEG data array
+    eeg_data = np.zeros((n_samples, n_channels))
+
+    # Generate initial sample
+    eeg_data[0, :] = np.random.multivariate_normal(np.zeros(n_channels), cov)
+
+    # precompute noise
+    noise = np.random.multivariate_normal(np.zeros(n_channels), cov, size=n_samples)
+
+    # Simulate time series data with autocorrelation
+    for i in range(1, n_samples):
+        # Autocorrelation factor (e.g., 0.95)
+        autocorr = 0.95
+        # Generate new sample based on previous sample and random noise
+        eeg_data[i, :] = autocorr * eeg_data[i - 1, :] + noise[i]
+
+    return eeg_data
+
 
 def simulate_eeg_localizer(n_samples, n_classes, noise=1.0, n_channels=64):
     raise NotImplementedError()
@@ -291,8 +341,12 @@ def insert_events(data, insert_data, insert_labels, sequence, n_events,
     if insert_data.ndim==2:
         insert_data = insert_data.reshape([*insert_data.shape, 1])
 
+    # work on copy of array to prevent mutable changes
+    data_sim = data.copy()
+
     # get reproducible seed
     seed = int(''.join(([str(x) if x.isdigit() else str(ord(x)) for x in hash_array(data)])))
+    seed = seed % 2**32
     np.random.seed(seed)
 
     # Define default parameters for replay generation
@@ -352,8 +406,6 @@ def insert_events(data, insert_data, insert_labels, sequence, n_events,
         # Append the chosen index to the list of starting indices
         replay_start_idxs.append(start_idx)
 
-    data_sim = data.copy()  # work on copy of array to prevent mutable changes
-
     # save data about inserted events here and return if requested
     events = {'idx': [],
               'pos': [],
@@ -401,3 +453,59 @@ def insert_events(data, insert_data, insert_labels, sequence, n_events,
         return (data_sim, df_onsets)
 
     return data_sim
+
+
+
+def create_travelling_wave(hz, sfreq, size, chs_pos, source_idx=0, speed=50):
+    """
+    Create a sinus wave of shape (size, len(sensor_pos)), where each
+    entry in the second dimension is phase shifted according to propagation
+    speed and the euclidean distance between sensor positions.
+
+    Parameters
+    ----------
+    hz : float
+        The frequency of the sinus curve in Hz.
+    sfreq : int
+        The sampling rate of the signal in Hz.
+    chs_pos : np.array or list
+        A list of 2d sensor/channel positions [(x, y), ...], with coordinates
+        given in cm. Phase shift of the wave will be calculated according to
+        the euclidean distance between sensors/channels.
+    source_idx : int, optional
+        Index of the sensor/channel at which the oscillation should start
+        with phase 0 and travel from there to all other positions.
+    speed : float, optional
+        Speed of wave in cm/second. The default is 50cm/second which is
+        a good average for alpha waves.
+
+    Returns
+    -------
+    wave : np.ndarray
+        Array of shape (size, len(sensor_pos)) representing the travelling wave.
+    """
+    if speed == 0 :
+        speed = np.inf
+    # Convert sensor_pos to a numpy array if it's not already
+    chs_pos = np.array(chs_pos)
+
+    # Number of sensors
+    n_sensors = len(chs_pos)
+
+    # Time array
+    t = np.arange(size) / sfreq
+
+    # Initialize wave array
+    wave = np.zeros((size, n_sensors))
+
+    # Calculate distances from the source sensor to all other sensors
+    distances = np.linalg.norm(chs_pos - chs_pos[source_idx], axis=1)
+
+    # Calculate the time delays for each sensor
+    time_delays = distances / (speed)
+
+    # Generate the sinusoidal wave for each sensor with the corresponding phase shift
+    for i in range(n_sensors):
+        wave[:, i] = np.sin(2 * np.pi * hz * (t - time_delays[i]))
+
+    return wave
