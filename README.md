@@ -1,5 +1,7 @@
 # TDLM-Python
 
+[![Codespell](https://github.com/skjerns/TDLM-Python/actions/workflows/codespell.yml/badge.svg)](https://github.com/skjerns/TDLM-Python/actions/workflows/codespell.yml)
+
 This repository provides a Python implementation of [TDLM](https://github.com/YunzheLiu/TDLM).
 
    \- Work-in-Progress -
@@ -15,7 +17,7 @@ Temporally Delayed Linear Modeling (TDLM) is a method used to quantify the "sequ
 ```
 import tdlm
 
-preds = ... # get your prediction matrix somehwere
+preds = ... # get your prediction matrix somewhere
 tf = [[0, 1, 0], [ 0, 0, 1], [1, 0 , 0]]  # transition matrix
 sequenceness_fwd, sequenceness_bkw, * = tdlm.compute_1step(preds, tf)
 

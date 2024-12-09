@@ -6,7 +6,6 @@ Created on Wed Mar 27 15:09:29 2024
 """
 
 from .core import *
-from .plotting import plot_sequenceness
+from .plotting import plot_sequenceness, plot_permutation_distribution
 from . import plotting
 from . import utils
-
