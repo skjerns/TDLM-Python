@@ -6,7 +6,7 @@ import numpy as np
 import scipy
 from scipy import io
 from tqdm import tqdm
-from tdlm.utils import create_travelling_wave
+from tdlm.utils import create_travelling_wave, unique_permutations
 import matplotlib.pyplot as plt
 
 
@@ -43,6 +43,22 @@ class TestUtils(unittest.TestCase):
         self.assertTrue(np.allclose(amplitudes, amplitudes[0], rtol=1e-5))
 
     def test_uperms(self):
+        n_states = 5
+        X = np.arange(n_states)+10
+
+        for k in range(1, 120):
+            (nPerms, pInds, Perms) = unique_permutations(X, k)
+            assert nPerms==np.math.factorial(n_states)
+            assert len(np.unique(pInds, axis=0))==k
+            assert (pInds[0]==[0, 1, 2, 3, 4]).all()
+
+        # too many permutations requested, not possible
+        with self.assertRaises(ValueError):
+            (nPerms, pInds, Perms) = unique_permutations(X, 121)
+
+        (nPerms, pInds, Perms) = unique_permutations(X, 120)
+
+    def test_travelling_waves(self):
         pos = [(0, 0),       # Center
                 (1, 0),       # 1 cm right
                 (-1, 0),      # 1 cm left

@@ -109,7 +109,7 @@ class TestMatlab(unittest.TestCase):
 
         # test parallel to check that parallel calls produce different results
         for backend in ['sequential', 'threading', 'multiprocessing', 'loky']:
-            # Make sure uperms also works together with Parallel
+            # Make sure uperms also works together with Parallel and produce random results
             res = Parallel(n_jobs=2, backend=backend)(delayed(uperms)(X, 30) for i in range(10))
             for i in range(8):
                 x1, y1, z1 = res[i]
@@ -118,15 +118,12 @@ class TestMatlab(unittest.TestCase):
                 np.testing.assert_raises(AssertionError, np.testing.assert_array_equal, z1, z2)
 
 
-
     def test_cross_correlation_matlab(self):
-        # the script will simultaneously call the matlab function as well as
-        # the python function and compare the results.
-
         # load testing data
         # the testfile can be created by inserting the line
         # `save('sequenceness_crosscorr_params.mat', 'rd', 'T', 'T2' )`
-        # into the matlab script sequenceness_crosscorr.m at line 6
+        # into the matlab script sequenceness_crosscorr.m at line 6.
+        # This will save the workspace of the MATLAB code so that it can be compared
 
         params = io.loadmat('./matlab_code/sequenceness_crosscorr_params.mat')
         tf = params['T']
@@ -157,6 +154,7 @@ class TestMatlab(unittest.TestCase):
         print(f'Algorithms gave equivalent results up to {decimal=}.')
 
 
+
     def test_glm_matlab_vanilla(self):
         """test whether the results of Simulate_Replay.m are the same
 
@@ -165,17 +163,25 @@ class TestMatlab(unittest.TestCase):
         implement Lasso regression differently. However, uperms is slightly
         differently implemented, so we need to monkey patch that.
         """
-        data = mat73.loadmat('./matlab_code/simulate_replay_results.mat')
+        # the testfile can be created by inserting the line
+        # save('simulate_replay.mat', 'preds', 'TF', 'sf', 'sb', 'uniquePerms', 'nShuf', 'maxLag', '-v7.3')
+        # into the matlab script sequenceness_crosscorr.m at line 160.
+        # and changing subj= to 1. This will saves the workspace of the MATLAB
+        # code so that it can be compared
+
+        data = mat73.loadmat('./matlab_code/simulate_replay.mat')
         preds = data['preds']
-        tf = data['TF']
+        tf = data['TF'].astype(int)
         sf_matlab = data['sf'].squeeze()
         sb_matlab = data['sb'].squeeze()
+        n_shuf = int(data['nShuf'].squeeze())
+        maxlag = int(data['maxLag'])
         uniqueperms = data['uniquePerms']-1
 
         # monkey patch uperms, to give equivalent results to MATLAB
         with patch('tdlm.core.unique_permutations', lambda *x: (0, uniqueperms, 0)):
             # print(tdlm.utils.unique_permutations([1,2,3]))
-            sf, sb = tdlm.compute_1step(preds, tf, max_lag=60, n_shuf=100)
+            sf, sb = tdlm.compute_1step(preds, tf, max_lag=maxlag, n_shuf=n_shuf)
 
         # first test if actual sequenceness results are the same
         np.testing.assert_allclose(sf_matlab[0, :], sf[0, :])
@@ -187,19 +193,34 @@ class TestMatlab(unittest.TestCase):
         np.testing.assert_allclose(sb_matlab[1:, :], sb[1:, :])
 
     def test_glm_matlab_alpha_correction(self):
-        """test if alpha correction also gives the same results as MATLAB"""
-        data = mat73.loadmat('./matlab_code/simulate_replay_withalpha_results.mat')
+        """test if alpha correction also gives the same results as MATLAB
+
+        this only tests the actual sequenceness calculation. it makes
+        no sense to compare the predictions themselve, as matlab and python
+        implement Lasso regression differently. However, uperms is slightly
+        differently implemented, so we need to monkey patch that.
+        """
+        # the testfile can be created by inserting the line
+        # save('simulate_replay_withalpha.mat', 'preds', 'TF', 'sf', 'sb', 'uniquePerms', 'nShuf', 'maxLag', '-v7.3')
+        # into the matlab script sequenceness_crosscorr.m at line 160.
+        # and changing subj= to 1. This will saves the workspace of the MATLAB
+        # code so that it can be compared
+
+        data = mat73.loadmat('./matlab_code/simulate_replay_withalpha.mat')
         preds = data['preds']
-        tf = data['TF']
-        sf_matlab = data['sf'].squeeze()
-        sb_matlab = data['sb'].squeeze()
+        tf = data['TF'].astype(int)
+        sf_matlab = np.squeeze(data['sf'])
+        sb_matlab = np.squeeze(data['sb'])
+        n_shuf = int(data['nShuf'].squeeze())
+        maxlag = int(data['maxLag'])
         uniqueperms = data['uniquePerms']-1
 
         # monkey patch uperms, to give equivalent results to MATLAB
+        # monkey patch uperms, to give equivalent results to MATLAB
         with patch('tdlm.core.unique_permutations', lambda *x: (0, uniqueperms, 0)):
             # print(tdlm.utils.unique_permutations([1,2,3]))
-            sf, sb = tdlm.compute_1step(preds, tf, max_lag=60, n_shuf=100,
-                                        alpha_freq=10)
+            sf, sb = tdlm.compute_1step(preds, tf, max_lag=maxlag, n_shuf=n_shuf, alpha_freq=10)
+
 
         # first test if actual sequenceness results are the same
         np.testing.assert_allclose(sf_matlab[0, :], sf[0, :])
@@ -210,8 +231,8 @@ class TestMatlab(unittest.TestCase):
         np.testing.assert_allclose(sf_matlab[1:, :], sf[1:, :])
         np.testing.assert_allclose(sb_matlab[1:, :], sb[1:, :])
 
-    def test_glm_matlab_multistep(self):
-        raise NotImplementedError()
+    # def test_glm_matlab_multistep(self):
+        # raise NotImplementedError()
 
 
 
