@@ -62,5 +62,5 @@ Currently the repo is still quite bare, only providing basic functionality. I ha
 If you use this package, please cite as
 
 ```
-Simon Kern & Yunzhe Liu (2024). skjerns/TDLM-Python: v0.1 Minimally usable version (v0.1). Zenodo. https://doi.org/10.5281/zenodo.12623445
+Simon Kern (2024). skjerns/TDLM-Python: v0.1 Minimally usable version (v0.1). Zenodo. https://doi.org/10.5281/zenodo.12623445
 ```
