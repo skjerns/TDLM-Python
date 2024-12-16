@@ -1,6 +1,7 @@
 # TDLM-Python
 
-[![Codespell](https://github.com/skjerns/TDLM-Python/actions/workflows/codespell.yml/badge.svg)](https://github.com/skjerns/TDLM-Python/actions/workflows/codespell.yml)
+[![Codespell](https://github.com/skjerns/TDLM-Python/actions/workflows/codespell.yml/badge.svg)](https://github.com/skjerns/TDLM-Python/actions/workflows/codespell.yml) 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.12623445.svg)](https://doi.org/10.5281/zenodo.12623444)
 
 This repository provides a Python implementation of [TDLM](https://github.com/YunzheLiu/TDLM).
 
