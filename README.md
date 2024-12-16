@@ -56,3 +56,9 @@ Currently the repo is still quite bare, only providing basic functionality. I ha
 * Cross correlation and GLM are two different base function that can be used. Other functions take a parameter which is either `glm` or `crosscorr` to denote which function is used. This way it is theoretically possible to extend the repository using other functions as well (e.g. granger causality, which is basically a flavor of crosscorr I guess)
 
 * Transition matrices should be format of a binary matrix. Helper functions are provided to convert a sequence string in format `ABC_DEF` denoting transitions from A->B->C and D->E->F.
+
+## Citation
+
+If you use this package, please cite
+
+Simon Kern & Yunzhe Liu (2024). skjerns/TDLM-Python: v0.1 Minimally usable version (v0.1). Zenodo. https://doi.org/10.5281/zenodo.12623445
