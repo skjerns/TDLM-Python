@@ -173,8 +173,8 @@ def compute_1step(preds, tf, tb=None, n_shuf=1000, min_lag=0, max_lag=50,
     sb : np.ndarray
         backward sequencess for all time lags and shuffles. Row 0 is the
         non-shuffled version. First lag is NAN as it is undefined for lag = 0
-
     """
+
     if seed is not None:
         np.random.seed(seed)
     n_states = preds.shape[-1]
