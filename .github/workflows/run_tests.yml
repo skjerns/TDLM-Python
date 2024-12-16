@@ -21,9 +21,8 @@ jobs:
     # Set up MATLAB before Python
     - name: Set up MATLAB
       uses: matlab-actions/setup-matlab@v2
-      
-    - name: Run MATLAB build
-      uses: matlab-actions/run-build@v2
+      with:
+        release: R2024b  # Specify the MATLAB release you want to use
       
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v5
