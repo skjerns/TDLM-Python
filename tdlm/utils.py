@@ -92,6 +92,7 @@ def unique_permutations(X, k=None):
     # http://www.mathworks.com/matlabcentral/fileexchange/authors/27434
     """
     # Count number of repetitions of each unique row, and get representative x
+
     X = np.array(X).squeeze()
     assert len(X) > 1
 
@@ -100,6 +101,11 @@ def unique_permutations(X, k=None):
     else:
         # [u uind x] = unique(X, 'rows'); % x codes unique rows with integers
         uniques, uind, c = np.unique(X, axis=0, return_index=True, return_counts=True)
+
+    max_perms = math.factorial(len(uniques))
+
+    if  k > max_perms:
+        raise ValueError('requested {k=} larger than all possible permutations')
 
     uniques = uniques.tolist()
     x = np.array([uniques.index(i) for i in X.tolist()])
@@ -113,8 +119,6 @@ def unique_permutations(X, k=None):
     if k is None:
         k = nPerms;  # default to computing all unique permutations
 
-    if  k > nPerms:
-        raise ValueError('requested {k=} larger than all possible permutations')
 
     # % Identity permutation always included first:
     pInds = np.zeros([int(k), n]).astype(np.uint32)

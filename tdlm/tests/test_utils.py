@@ -4,6 +4,7 @@ import os
 import unittest
 import numpy as np
 import scipy
+import math
 from scipy import io
 from tqdm import tqdm
 from tdlm.utils import create_travelling_wave, unique_permutations
@@ -62,7 +63,7 @@ class TestUtils(unittest.TestCase):
 
         for k in range(1, 120):
             (nPerms, pInds, Perms) = unique_permutations(X, k)
-            assert nPerms==np.math.factorial(n_states)
+            assert nPerms==math.factorial(n_states)
             assert len(np.unique(pInds, axis=0))==k
             assert (pInds[0]==[0, 1, 2, 3, 4]).all()
 
