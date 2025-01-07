@@ -15,7 +15,8 @@ class TestUtils(unittest.TestCase):
     def setUp(self):
         self.hz = 10  # 10 Hz frequency
         self.sfreq = 100  # 1000 Hz sampling rate
-        self.size = 1000  # 1 second of data
+        self.size = 1000  # 10 second of data
+        self.seconds = 10
         self.sensor_pos = [
             (0, 0),  # Center
             (1, 0),  # 1 cm right
@@ -26,11 +27,19 @@ class TestUtils(unittest.TestCase):
         self.speed = 50  # 50 cm/second
 
     def test_output_shape(self):
-        wave = create_travelling_wave(self.hz, self.sfreq, self.size, self.sensor_pos, speed=self.speed)
+        wave = create_travelling_wave(hz = self.hz,
+                                      seconds=self.seconds,
+                                      sfreq = self.sfreq,
+                                      chs_pos=self.sensor_pos,
+                                      speed=self.speed)
         self.assertEqual(wave.shape, (self.size, len(self.sensor_pos)))
 
     def test_frequency(self):
-        wave = create_travelling_wave(self.hz, self.sfreq, self.size, self.sensor_pos, speed=self.speed)
+        wave = create_travelling_wave(hz = self.hz,
+                                      seconds=self.seconds,
+                                      sfreq = self.sfreq,
+                                      chs_pos=self.sensor_pos,
+                                      speed=self.speed)
         # Check frequency of the center sensor (should be exactly as specified)
         fft = np.fft.rfft(wave[:, 0])
         freq = np.fft.rfftfreq(self.size, 1/self.sfreq)
@@ -38,7 +47,11 @@ class TestUtils(unittest.TestCase):
         self.assertAlmostEqual(peak_freq, self.hz, places=1)
 
     def test_amplitude(self):
-        wave = create_travelling_wave(self.hz, self.sfreq, self.size, self.sensor_pos, speed=self.speed)
+        wave = create_travelling_wave(hz = self.hz,
+                                      seconds=self.seconds,
+                                      sfreq = self.sfreq,
+                                      chs_pos=self.sensor_pos,
+                                      speed=self.speed)
         # Check if amplitude is consistent across all sensors
         amplitudes = np.max(wave, axis=0) - np.min(wave, axis=0)
         self.assertTrue(np.allclose(amplitudes, amplitudes[0], rtol=1e-5))
@@ -80,7 +93,8 @@ class TestUtils(unittest.TestCase):
                 ]
         for sfreq in np.arange(50, 500, 29):
             for div in np.arange(10):
-                wave = create_travelling_wave(7, sfreq, 500, pos, speed=sfreq/div)
+                seconds = 500/sfreq
+                wave = create_travelling_wave(7, seconds, sfreq, pos, speed=sfreq/div)
                 for i in range(1,17):
                     off = (i-1)//4+1
                     np.testing.assert_array_almost_equal(wave[:200, 0], wave[div*off:200+div*off, i])

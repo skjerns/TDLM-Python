@@ -110,8 +110,11 @@ def unique_permutations(X, k=None):
     # % computation of permutation
     # Basics
     n = len(X);
-    if k is None or k > nPerms:
+    if k is None:
         k = nPerms;  # default to computing all unique permutations
+
+    if  k > nPerms:
+        raise ValueError('requested {k=} larger than all possible permutations')
 
     # % Identity permutation always included first:
     pInds = np.zeros([int(k), n]).astype(np.uint32)
@@ -518,7 +521,7 @@ def insert_events(data, insert_data, insert_labels, sequence, n_events,
 
 
 
-def create_travelling_wave(hz, length, sfreq, chs_pos, source_idx=0, speed=50):
+def create_travelling_wave(hz, seconds, sfreq, chs_pos, source_idx=0, speed=50):
     """
     Create a sinus wave of shape (size, len(sensor_pos)), where each
     entry in the second dimension is phase shifted according to propagation
@@ -553,7 +556,7 @@ def create_travelling_wave(hz, length, sfreq, chs_pos, source_idx=0, speed=50):
 
     # Number of sensors
     n_sensors = len(chs_pos)
-    size = int(length * sfreq)
+    size = int(seconds * sfreq)
 
     # Time array
     t = np.arange(size) / sfreq

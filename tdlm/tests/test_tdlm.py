@@ -48,27 +48,27 @@ class TestTDLM(unittest.TestCase):
 
     def test_alpha_supression(self):
         pass
-if True:
-        # create a very simple fake probability vector with ones and zeros
-        tf = np.roll(np.eye(5), 1, axis=1)
-        sfreq = 100
-        length = 60
-        proba = np.random.rand(sfreq*length)
-        # induce time lag of 3 time steps
-        lag = 10
-        probas = np.zeros([proba.shape[0], 5])
-        for i in range(5):
-            probas[:, i] = np.roll(proba, i*lag)
+# if True:
+#         # create a very simple fake probability vector with ones and zeros
+#         tf = np.roll(np.eye(5), 1, axis=1)
+#         sfreq = 100
+#         length = 60
+#         proba = np.random.rand(sfreq*length)
+#         # induce time lag of 3 time steps
+#         lag = 10
+#         probas = np.zeros([proba.shape[0], 5])
+#         for i in range(5):
+#             probas[:, i] = np.roll(proba, i*lag)
 
-        # sf, sb = tdlm.compute_1step(probas, tf, n_shuf=10)
-        # sf_a, sb_a = tdlm.compute_1step(probas, tf, n_shuf=10, alpha_freq=10)
-        sf_a2, sb_a2 = tdlm.compute_1step(probas, tf, n_shuf=10, alpha_freq=9)
+#         # sf, sb = tdlm.compute_1step(probas, tf, n_shuf=10)
+#         # sf_a, sb_a = tdlm.compute_1step(probas, tf, n_shuf=10, alpha_freq=10)
+#         sf_a2, sb_a2 = tdlm.compute_1step(probas, tf, n_shuf=10, alpha_freq=9)
 
 
-        fig, ax = plt.subplots(figsize=[8, 6])
-        plotting.plot_sequenceness(sf, sb, which =['fwd'], ax=ax)
-        plotting.plot_sequenceness(sf_a, sb_a, which =['fwd'], ax=ax, color='red', clear=False)
-        plotting.plot_sequenceness(sf_a2, sb_a2, which =['fwd'], ax=ax, color='green', clear=False)
+#         fig, ax = plt.subplots(figsize=[8, 6])
+#         plotting.plot_sequenceness(sf, sb, which =['fwd'], ax=ax)
+#         plotting.plot_sequenceness(sf_a, sb_a, which =['fwd'], ax=ax, color='red', clear=False)
+#         plotting.plot_sequenceness(sf_a2, sb_a2, which =['fwd'], ax=ax, color='green', clear=False)
 
 if __name__=='__main__':
     unittest.main()
