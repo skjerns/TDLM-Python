@@ -272,7 +272,7 @@ def simulate_meeg(length, sfreq, n_channels=64, cov=None, autocorr=0.95):
     - autocorr: float, optional
         temporal correlation of each sample with its neighbour samples in time.
 
-    this code is losely based but optimized version of
+    this code is loosely based but optimized version of
          https://github.com/YunzheLiu/TDLM/blob/master/Simulate_Replay.m
 
     Returns:
