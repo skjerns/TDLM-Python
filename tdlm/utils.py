@@ -104,6 +104,9 @@ def unique_permutations(X, k=None):
 
     max_perms = math.factorial(len(uniques))
 
+    if k is None:
+        k = max_perms;  # default to computing all unique permutations
+
     if  k > max_perms:
         raise ValueError('requested {k=} larger than all possible permutations')
 
@@ -116,8 +119,6 @@ def unique_permutations(X, k=None):
     # % computation of permutation
     # Basics
     n = len(X);
-    if k is None:
-        k = nPerms;  # default to computing all unique permutations
 
 
     # % Identity permutation always included first:
