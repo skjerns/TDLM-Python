@@ -9,7 +9,8 @@ core functions for Temporally Delayed Linear Modelling
 import os
 import numpy as np
 import logging
-from tdlm.utils import unique_permutations, seq2tf
+from tdlm.utils import unique_permutations, seq2tf, tf2seq
+from tdlm import utils
 from scipy.linalg import toeplitz
 from numba import njit
 from scipy.stats import zscore as zscore_func  # with alias to prevent clash
@@ -17,9 +18,9 @@ from joblib import Parallel, delayed
 from numpy.linalg import pinv
 
 # try:
-#     from jax.numpy.linalg import pinv
+    # from jax.numpy.linalg import pinv
 # except ModuleNotFoundError:
-#     logging.warning('jaxlib not installed, can massively speed up with GPU')
+#     logging.warning('jaxlib not installed, can speed up computation')
 
 # some helper functions to make matlab work like python
 ones = lambda *args, **kwargs: np.ones(shape=args, **kwargs)
@@ -28,8 +29,6 @@ nan = lambda *args: np.full(shape=args, fill_value=np.nan)
 squash = lambda arr: np.ravel(arr, 'F')  # MATLAB uses Fortran style reshaping
 
 
-
-# @profile
 
 def _find_betas(preds: np.ndarray, n_states: int, max_lag: int, alpha_freq=None):
     """for prediction matrix X (states x time), get transitions up to max_lag.
@@ -63,6 +62,7 @@ def _find_betas(preds: np.ndarray, n_states: int, max_lag: int, alpha_freq=None)
         betas[ilag_idx, :] = ilag_betas[0:-1, :];
 
     return betas
+
 
 @njit
 def _numba_roll(X, shift):
@@ -132,6 +132,9 @@ def sequenceness_crosscorr(preds, tf, tb=None, n_shuf=1000, min_lag=0, max_lag=5
                                                                         max_lag=max_lag,
                                                                         min_lag=min_lag)
     return seq_fwd_corr, seq_bkw_corr
+
+
+
 
 # @profile
 def compute_1step(preds, tf, tb=None, n_shuf=1000, min_lag=0, max_lag=50,
@@ -216,196 +219,134 @@ def compute_1step(preds, tf, tb=None, n_shuf=1000, min_lag=0, max_lag=50,
     return seq_fwd, seq_bkw
 
 
-# # @profile
-# def compute_1step_parallel(preds, tf, tb=None, n_shuf=1000, min_lag=0, max_lag=50,
-#                   alpha_freq=None,  cross_corr=False, n_jobs=-1):
-#     """
-#     Calculate 1-step-sequenceness for probability estimates and transitions.
+def compute_2step(preds, tf, tb=None, n_steps=2, n_shuf=1000, min_lag=0, max_lag=50,
+                   alpha_freq=None, seed=None):
+    """
+    # 2step tdlm version. for now this is a copy of the MATLAB code, did not
+    have time yet to implement the generalized version
+    """
+    if seed is not None:
+        np.random.seed(seed)
+    assert n_steps==2, "need to implement >2 steps. scaffold is there though"
 
-#     Parameters
-#     ----------
-#     preds : np.ndarray
-#         2d matrix with predictions, shape= (n_states, times), where each
-#         timestep contains n_states prediction values for states at that time
-#     tf : np.ndarray
-#         transition matrix with expected transitions for the underlying states.
-#     tb : np.ndarray
-#         backward transition matrix expected transitions for the underlying
-#         states. In case transitions are non-directional, the backwards matrix
-#         is simply set to be the transpose of tf. Default tb = tf.T
-#     n_shuf : int
-#         number of random shuffles to be done for permutation testing.
-#     max_lag : int
-#         maximum time lag to calculate. Time dimension is measured in sample
-#         steps of the preds time dimension.
-#     alpha_freq : int, optional
-#         Alpha oscillation frequency to control for. Time shifted copies of the
-#         signal are added in this frequency to the GLM, acting as a confounds.
-#         Warning: Must be supplied in sample points, not in Hertz!
-#         The default is None.
-#     n_steps : int, optional
-#         number of transition steps to look for. Not implemented yet.
-#         The default is 1.
-#     cross_corr : bool, optional
-#         Additionally to GLM analysis, perform cross correlation.
-#         The default is False.
-#     n_jobs : int, optional
-#         Number of parallel cores to use for some of the sub-analysis.
-#         The default is 1.
+    seq = tf2seq(tf)
 
-#     Returns
-#     -------
-#     sf : np.ndarray
-#         forward sequencess for all time lags and shuffles. Row 0 is the
-#         non-shuffled version
-#     sb : np.ndarray
-#         backward sequencess for all time lags and shuffles. Row 0 is the
-#         non-shuffled version
+    n_states = preds.shape[-1]
 
-#     """
+    _, unique_perms, _ = unique_permutations(np.arange(1, n_states + 1), n_shuf)
 
-#     n_states = preds.shape[-1]
-#     # unique permutations
-#     _, unique_perms, _ = unique_permutations(np.arange(1, n_states + 1), n_shuf)
+    # create all two step transitions from our transition matrix
+    tf_y = []
+    tf_x2 = []
+    tf_x1 = []
 
-#     seq_fwd = nan(n_shuf, max_lag + 1)  # forward sequenceness
-#     seq_bkw = nan(n_shuf, max_lag + 1)  # backward sequencenes
+    seq_starts = np.where(tf)
+    for x1, x2 in zip(*seq_starts):
+        for y in np.where(tf[x2, :])[0]:
+            tf_x1 += [x1]
+            tf_x2 += [x2]
+            tf_y  += [y]
 
-#     if tb is None:
-#         # backwards is transpose of forwards
-#         tb = tf.T
+    tr_y = tf_x1
+    tr_x2 = tf_x2
+    tr_x1 = tf_y
 
-#     ## GLM: state regression, with other lags
+    tf2 = zeros(len(tf_y), n_states);
+    tf_auto = zeros(len(tf_y), n_states);
 
-#     betas = _find_betas(preds, n_states, max_lag, alpha_freq=alpha_freq)
-#     # betas = find_betas_optimized(X, n_states, max_lag, alpha_freq=alpha_freq)
-#     # np.testing.assert_array_almost_equal(betas, betas2, decimal= 12)
+    for i in range(len(tf_y)):
+        tf2[i,tf_y[i]] = 1;
+        tf_auto[i, np.unique([tf_x1[i], tf_x2[i]])]=1;
 
-#     # reshape the coeffs for regression to be in the order of ilag x (n_states x n_states)
-#     betasn_ilag_stage = np.reshape(betas, [max_lag, n_states ** 2], order='F');
+    tr2 = zeros(len(tr_y), n_states);
+    tr_auto = zeros(len(tr_y), n_states);
+    for i in range(len(tr_y)):
+        tr2[i, tr_y[i]] = 1;
+        tr_auto[i, np.unique([tr_x1[i], tr_x2[i]])]=1;
 
-#     bbbs = Parallel(n_jobs)(delayed(_compute_1step)(betasn_ilag_stage,
-#                                                     tf[unique_perms[i, :], :][:, unique_perms[i, :]],
-#                                                     tb[unique_perms[i, :], :][:, unique_perms[i, :]],
-#                                                     n_states) for i in range(n_shuf))
-#     for i in range(n_shuf):
-#         seq_fwd[i, 1:] = bbbs[i][0, :]  # forward coeffs
-#         seq_bkw[i, 1:] = bbbs[i][1, :]  # backward coeffs
 
-#     return seq_fwd, seq_bkw
+    x2_bin = np.full([max_lag, len(preds)] + [n_states] * n_steps, np.nan)
 
-# def _compute_1step(betasn_ilag_stage, tf_perm, tb_perm, n_states):
-#     t_auto = np.eye(n_states)  # control for auto correlations
-#     t_const = np.ones([n_states, n_states])  # keep betas in same range
+    # Initialize variables
+    x = preds
+    y = x
 
-#     # create our design matrix for the second step analysis
-#     dm = np.vstack([squash(tf_perm), squash(tb_perm), squash(t_auto), squash(t_const)]).T
+    # First loop
+    for lag in range(1, max_lag + 1):
+        pad = np.zeros((lag, n_states))
+        x1 = np.vstack([pad, pad, x[:-2 * lag, :]])
+        x2 = np.vstack([pad, x[:-lag, :]])
 
-#     # now calculate regression coefs for use with transition matrix
-#     bbb = _pinv(dm) @ (betasn_ilag_stage.T)  #%squash(ones(n_states))
-#     return bbb
-#%% __main__
+        for i in range(n_states):
+            for j in range(n_states):
+                x2_bin[lag - 1, :, i, j] = x1[:, i] * x2[:, j]
+
+    beta_f = np.full((max_lag, len(tf_y), n_states), np.nan)
+    beta_b = np.full((max_lag, len(tr_y), n_states), np.nan)
+
+    # Second loop
+    for lag in range(max_lag):
+        x_matrix = x2_bin[lag, :, :, :]
+
+        for state in range(len(tf_y)):
+            x_fwd = x_matrix[:, :, tf_x2[state]]
+            x_bkw = x_matrix[:, :, tr_x2[state]]
+
+            temp_f = pinv(np.hstack([x_fwd, np.ones((len(x_fwd), 1))])) @ y
+            beta_f[lag, state, :] = temp_f[tf_x1[state], :]
+
+            temp_b = pinv(np.hstack([x_bkw, np.ones((len(x_bkw), 1))])) @ y
+            beta_b[lag, state, :] = temp_b[tr_x1[state], :]
+
+    beta_f = beta_f.reshape((max_lag, len(tf_y) * n_states), order='F')
+    beta_b = beta_b.reshape((max_lag, len(tr_y) * n_states), order='F')
+
+    seq_fwd = nan(n_shuf, max_lag+1);
+    seq_bkw = nan(n_shuf, max_lag+1);
+
+    # Third loop
+    for shuffle_idx in range(n_shuf):
+        random_permutation = unique_perms[shuffle_idx, :]
+
+        # 2nd level
+        const_f = np.ones((len(tf_y), n_states))
+        const_r = np.ones((len(tr_y), n_states))
+
+        tf_shuffled = tf2[:, random_permutation]
+        tr_shuffled = tr2[:, random_permutation]
+
+        cc = pinv(np.hstack([
+            squash(tf_shuffled)[:, None],
+            squash(tf_auto)[:, None],
+            squash(const_f)[:, None]
+        ])) @ beta_f.T
+        seq_fwd[shuffle_idx, 1:] = cc[0, :]
+
+        cc = pinv(np.hstack([
+            squash(tr_shuffled)[:, None],
+            squash(tr_auto)[:, None],
+            squash(const_r)[:, None]
+        ])) @ beta_b.T
+        seq_bkw[shuffle_idx, 1:] = cc[0, :]
+    return seq_fwd, seq_bkw
+
+
+#%% __main__ -  quick debugging
 if __name__=='__main__':
     import stimer
-    # with stimer:
-    #     a1, b1 = compute_1step(np.random.rand(20000, 10), tf=np.eye(10))
+    import mat73
 
-    preds = np.random.rand(8, 10000).T
-    n_states = preds.shape[1]
-    alpha_freq = None
-    max_lag = 50
-    with stimer('unoptimized'):
-        for i in range(5):
-            x1 = _find_betas(preds, n_states=n_states, max_lag=max_lag, alpha_freq=10)
+    data = mat73.loadmat('./tests/matlab_code/simulate_replay_longerlength_results.mat')
+    preds = data['preds']
+    tf = data['TF']
+    sf_matlab = data['sf1'].squeeze()
+    sb_matlab = data['sb1'].squeeze()
+    max_lag = int(data['maxLag'])
+    n_shuf = int(data['nShuf'])
+    unique_perms = data['uniquePerms']-1
 
-
-# def sequenceness(preds, tf, tb=None, n_shuf=1000, max_lag=30, alpha_freq=None,
-#                  n_steps=1, cross_corr=False, n_jobs=1, zscore=False):
-#     """
-#     Calculate sequenceness for given probability estimates and transitions.
-
-#     Sequenceness can be either calculated using a GLM or cross correlation.
-#     Permutation testing is done using unique permutations
-
-#     Parameters
-#     ----------
-#     preds : np.ndarray
-#         2d matrix with predictions, shape= (n_states, times), where each
-#         timestep contains n_states prediction values for states at that time
-#     tf : np.ndarray
-#         forward transition matrix with expected transitions for the underlying
-#         states.
-#     tb : np.ndarray
-#         backward transition matrix expected transitions for the underlying
-#         states. In case transitions are non-directional, the backwards matrix
-#         is simply set to be the transpose of tf. Default tb = tf.T
-#     n_shuf : int
-#         number of random shuffles to be done for permutation testing.
-#     max_lag : int
-#         maximum time lag to calculate. Time dimension is measured in sample
-#         steps of the preds time dimension.
-#     alpha_freq : int, optional
-#         Alpha oscillation frequency to control for. Time shifted copies of the
-#         signal are added in this frequency to the GLM, acting as a confounds.
-#         The default is None.
-#     n_steps : int, optional
-#         number of transition steps to look for. Not implemented yet.
-#         The default is 1.
-#     cross_corr : bool, optional
-#         Additionally to GLM analysis, perform cross correlation.
-#         The default is False.
-#     n_jobs : int, optional
-#         Number of parallel cores to use for some of the sub-analysis.
-#         The default is 1.
-#     zscore : bool, optional
-#         zscore the resulting probability values. This has the advantage of
-#         normalizing the sequenceness values across participants but the
-#         disadvantage of making the absolute values no longer interpretable.
-#         This was e.g. done in Wimmer et al. 2020. Another disadvantage is that
-#         the summed differential sequenceness will by definition always be zero
-#         making a time windowed approach as in Wise et al. (2021) inapplicable.
-#         The default is False.
-
-#     Raises
-#     ------
-#     NotImplementedError
-#         2 step TDLM isn't implemented yet.
-
-#     Returns
-#     -------
-#     sf : np.ndarray
-#         forward sequencess for all time lags and shuffles. Row 0 is the
-#         non-shuffled version
-#     sb : np.ndarray
-#         backward sequencess for all time lags and shuffles. Row 0 is the
-#         non-shuffled version
-#     sf_corr : np.ndarray
-#         forward cross-correlation for all time lags and shuffles. Row 0 is the
-#         non-shuffled version. None if no correlation is done
-#     sb_corr : np.ndarray
-#         backward cross-correlation for all time lags and shuffles. Row 0 is the
-#         non-shuffled version. None if no correlation is done
-
-#     """
-#     assert preds.ndim == 2, 'predictions must be 2d'
-#     assert preds.shape[0] > preds.shape[1], f'preds shape[1] should be time dimension but{preds.shape=}'
-
-#     if n_steps == 1:
-#         sf, sb, sf_corr, sb_corr = compute(preds=preds,
-#                                            tf=tf,
-#                                            n_shuf=n_shuf,
-#                                            max_lag= max_lag,
-#                                            alpha_freq=alpha_freq,
-#                                            cross_corr=cross_corr)
-#     elif n_steps == 2:
-#         raise NotImplementedError('not yet implemented')
-#         sf, sb, sf_corr, sb_corr = compute_2step(preds, seq, n_shuf, max_lag, uniquePerms,
-#                                                  alpha_freq=alpha_freq, cross_corr=cross_corr,
-#                                                  n_jobs=n_jobs)
-#     if zscore:
-#         sf = zscore_func(sf, -1, nan_policy='omit')
-#         sb = zscore_func(sb, -1, nan_policy='omit')
-#         sf_corr = zscore_func(sf_corr, -1, nan_policy='omit')
-#         sb_corr = zscore_func(sb_corr, -1, nan_policy='omit')
-
-#     return sf, sb, sf_corr, sb_corr
+    # monkey patch uperms, to give equivalent results to MATLAB
+        # print(tdlm.utils.unique_permutations([1,2,3]))
+    with stimer:
+        sf, sb = compute_2step(preds, tf, max_lag=max_lag,
+                                    n_shuf=n_shuf)

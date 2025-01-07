@@ -7,6 +7,7 @@ import scipy
 from scipy import io
 from tqdm import tqdm
 from tdlm.utils import create_travelling_wave, unique_permutations
+from tdlm.utils import simulate_meeg
 import matplotlib.pyplot as plt
 
 
@@ -83,6 +84,10 @@ class TestUtils(unittest.TestCase):
                 for i in range(1,17):
                     off = (i-1)//4+1
                     np.testing.assert_array_almost_equal(wave[:200, 0], wave[div*off:200+div*off, i])
+
+    def test_simulate_meeg(self):
+        data = simulate_meeg(60, 100)
+
 
 if __name__=='__main__':
     unittest.main()

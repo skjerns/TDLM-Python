@@ -213,6 +213,34 @@ class TestMatlab(unittest.TestCase):
         # raise NotImplementedError()
 
 
+    def test_glm_matlab_multistep(self):
+        """test if multistep (2step) also gives the same results as MATLAB"""
+        data = mat73.loadmat('./matlab_code/simulate_replay_longerlength_results.mat')
+        preds = data['preds']
+        tf = data['TF']
+        sf_matlab = data['sf1'].squeeze()
+        sb_matlab = data['sb1'].squeeze()
+        max_lag = int(data['maxLag'])
+        n_shuf = int(data['nShuf'])
+        unique_perms = data['uniquePerms']-1
+
+        # monkey patch uperms, to give equivalent results to MATLAB
+        with patch('tdlm.core.unique_permutations', lambda *x: (0, unique_perms, 0)):
+            # print(tdlm.utils.unique_permutations([1,2,3]))
+            sf, sb = tdlm.compute_2step(preds, tf, max_lag=max_lag,
+                                        n_shuf=n_shuf)
+
+        # first test if actual sequenceness results are the same
+        np.testing.assert_allclose(sf_matlab[0, :], sf[0, :])
+        np.testing.assert_allclose(sb_matlab[0, :], sb[0, :])
+
+        # next test if shuffles are the same.
+        # this should depend on uperms being implemented the same
+        np.testing.assert_allclose(sf_matlab[1:, :], sf[1:, :])
+        np.testing.assert_allclose(sb_matlab[1:, :], sb[1:, :])
+
+
+
 
 if __name__ == '__main__':
     unittest.main()

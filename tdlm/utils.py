@@ -11,7 +11,7 @@ import math
 import numpy as np
 import pandas as pd
 from numpy.linalg import pinv, eigh
-
+from scipy.signal import lfilter
 def hash_array(arr, dtype=np.int64, truncate=8):
     """
     create a persistent hash for a numpy array based on the byte representation
@@ -159,14 +159,46 @@ def num2char(arr):
     return np.array([chr(x+65) for x in arr.ravel()]).reshape(*arr.shape)
 
 
-def tf2seq(TF):
-    """from transition matrix to alphanumerical sequence"""
-    raise NotImplementedError
-    seq = ''
-    for i, row in enumerate(TF):
-        for j, col in enumerate(row):
-            np.where()
-    return seq
+def tf2seq(transition_matrix):
+    """
+    Convert a transition matrix into a sequence string.
+    If there are disjoint sequences, separate them with "_".
+
+    :param transition_matrix: A square numpy array representing the transition matrix.
+                              Each row should have at most one outgoing transition (1).
+    :return: A string representing the sequence(s), e.g., "ABC_DEF".
+    """
+    n_states = transition_matrix.shape[0]
+    visited = set()
+    sequences = []
+
+    def find_sequence(start_state):
+        """Helper function to find a sequence starting from a given state."""
+        sequence = []
+        current_state = start_state
+        while current_state not in visited:
+            sequence.append(current_state)
+            visited.add(current_state)
+            next_state = np.argmax(transition_matrix[current_state])  # Find the next state
+            if transition_matrix[current_state, next_state] == 0:  # No valid transition
+                break
+            current_state = next_state
+        return sequence
+
+    # Iterate through all states to find disjoint sequences
+    for state in range(n_states):
+        if state not in visited and np.sum(transition_matrix[state]) > 0:  # Unvisited and has outgoing transitions
+            sequence = find_sequence(state)
+            sequences.append(sequence)
+
+    # Convert numeric sequences to character sequences and join with "_"
+    sequence_strings = []
+    for sequence in sequences:
+        sequence_str = ''.join(chr(65 + state) for state in sequence)
+        sequence_strings.append(sequence_str)
+
+    return '_'.join(sequence_strings)
+
 
 def seq2tf(sequence, n_states=None):
     """
@@ -196,7 +228,7 @@ def seq2tf(sequence, n_states=None):
 
 def seq2TF_2step(seq, n_states=None):
     """create a transition matrix with all 2 steps from a sequence string,
-    e.g. ABCDEFGE. """
+    e.g. ABCDEFGE.  AB->C BC->D ..."""
     import pandas as pd
     triplets = []
     if n_states is None:
@@ -204,6 +236,7 @@ def seq2TF_2step(seq, n_states=None):
     TF2 = np.zeros([n_states**2, n_states], dtype=int)
     for i, p1 in enumerate(seq):
         if i+2>=len(seq): continue
+        if p1=='_': continue
         triplet = seq[i] + seq[(i+1) % len(seq)] + seq[(i+2)% len(seq)]
         i = char2num(triplet[0])[0] * n_states + char2num(triplet[1])[0]
         j = char2num(triplet[2])
@@ -219,9 +252,9 @@ def seq2TF_2step(seq, n_states=None):
     return TF2
 
 
-def simulate_eeg_resting_state(length, sfreq, n_channels=64, cov=None):
+def simulate_meeg(length, sfreq, n_channels=64, cov=None, autocorr=0.95):
     """
-    Simulate EEG resting-state data.
+    Simulate M/EEG resting-state data.
 
     Parameters:
     - length: float
@@ -232,13 +265,24 @@ def simulate_eeg_resting_state(length, sfreq, n_channels=64, cov=None):
         Number of EEG channels (default is 64).
     - cov: numpy.ndarray, optional
         Covariance matrix of shape (n_channels, n_channels).
-        If None, a random covariance matrix is generated.
+        If None, a random covariance matrix is generated
+    - autocorr: float, optional
+        temporal correlation of each sample with its neighbour samples in time.
+
+    this code is losely based but optimized version of
+         https://github.com/YunzheLiu/TDLM/blob/master/Simulate_Replay.m
 
     Returns:
     - eeg_data: numpy.ndarray
         Simulated EEG data of shape (n_samples, n_channels).
     """
+    assert 0<=autocorr<1
+
     n_samples = int(length * sfreq)  # Total number of samples
+
+    if cov is not None and n_channels is not None:
+        assert len(cov)==n_channels, \
+            'n_channels must be the same as covariance size'
 
     # If covariance matrix is not provided, generate a random one
     if cov is None:
@@ -259,16 +303,34 @@ def simulate_eeg_resting_state(length, sfreq, n_channels=64, cov=None):
     # Generate initial sample
     eeg_data[0, :] = np.random.multivariate_normal(np.zeros(n_channels), cov)
 
-    # precompute noise
-    noise = np.random.multivariate_normal(np.zeros(n_channels), cov, size=n_samples)
+    # precompute noise by drawing a noise vector for each channel across time
+    noise = np.random.multivariate_normal(np.zeros(n_channels), cov,
+                                          size=n_samples)
 
-    # Simulate time series data with autocorrelation
-    for i in range(1, n_samples):
-        # Autocorrelation factor (e.g., 0.95)
-        autocorr = 0.95
-        # Generate new sample based on previous sample and random noise
-        eeg_data[i, :] = autocorr * eeg_data[i - 1, :] + noise[i]
+    b = [1.0]           # numerator
+    a = [1.0, -autocorr]  # denominator
 
+    # Use scipy.signal.lfilter for each channel (C-accelerated time loop).
+    # Provide the initial sample as part of the filter's state so that x(1) = autocorr*x(0) + noise(1).
+    for ch in range(n_channels):
+        # "zi" is the filter state; we set it so that the very first sample equals eeg_data[0, ch].
+        # The shape of zi must be (max(len(a), len(b)) - 1) = 1 for AR(1).
+        channel_noise = noise[1:, ch]  # we skip noise(0) because x(0) is already set
+
+        # The "zi" (initial filter state) must produce x(1) = autocorr*x(0) + e(1).
+        # With an AR(1), the length of zi = max(len(a), len(b)) - 1 = 1.
+        # When using lfilter([1], [1, -r], x, zi=[z]),
+        # the first output sample is y(0) = b[0]*x(0) + z = x(0) + z.
+        #
+        # We need y(0) = x(1) = autocorr*x(0) + noise(1).
+        # So z = autocorr*x(0).
+        zi = [autocorr * eeg_data[0, ch]]
+
+        # Apply filtering to get x(1..n_samples-1).
+        channel_out, _ = lfilter(b, a, channel_noise, zi=zi)
+
+        # Store the result into [1..n_samples-1] for the channel
+        eeg_data[1:, ch] = channel_out
     return eeg_data
 
 
@@ -456,7 +518,7 @@ def insert_events(data, insert_data, insert_labels, sequence, n_events,
 
 
 
-def create_travelling_wave(hz, sfreq, size, chs_pos, source_idx=0, speed=50):
+def create_travelling_wave(hz, length, sfreq, chs_pos, source_idx=0, speed=50):
     """
     Create a sinus wave of shape (size, len(sensor_pos)), where each
     entry in the second dimension is phase shifted according to propagation
@@ -491,6 +553,7 @@ def create_travelling_wave(hz, sfreq, size, chs_pos, source_idx=0, speed=50):
 
     # Number of sensors
     n_sensors = len(chs_pos)
+    size = int(length * sfreq)
 
     # Time array
     t = np.arange(size) / sfreq
@@ -509,3 +572,10 @@ def create_travelling_wave(hz, sfreq, size, chs_pos, source_idx=0, speed=50):
         wave[:, i] = np.sin(2 * np.pi * hz * (t - time_delays[i]))
 
     return wave
+
+
+# if __name__=='__main__':
+#     np.random.seed(0)
+#     x1 = simulate_meeg(60,100)
+#     np.random.seed(0)
+#     x2 = simulate_meeg_opt(60,100)

@@ -1,18 +1,17 @@
 clear;
 clc;
 close all;
-
+rng(0)
 %%  transition matrix
 TF = [0,1,0,0,0,0,0,0;0,0,1,0,0,0,0,0;0,0,0,1,0,0,0,0;0,0,0,0,0,0,0,0;0,0,0,0,0,1,0,0;0,0,0,0,0,0,1,0;0,0,0,0,0,0,0,1;0,0,0,0,0,0,0,0];
 TR = TF';
 nSensors = 273;
 nTrainPerStim = 18; % how many training examples (direct presentations) for each stimulus)
-nNullExamples = nTrainPerStim*8; % how many null examples to use
 nSamples = 8000; % 60 seconds of unlabelled data to predict
 nSequences = 6000; % how many real sequences to put in the data
 maxLag = 60; % evaluate cross-correlation up to 600ms
 cTime = 0:10:maxLag*10; % the milliseconds of each cross-correlation time lag
-nSubj = 24; % number of subjects to simulate
+nSubj = 1; % number of subjects to simulate
 gamA = 10;%10;%1e4; 
 gamB = 0.5;%0.6;%;6e-4; % parameters for the gamma distribution of intervals between states in a sequence
 nstates=8;
@@ -22,10 +21,12 @@ nShuf = size(uniquePerms,1);
 samplerate=100;
 nlength=3; % change here to test for multi-length
 
+nNullExamples = nTrainPerStim*8; % how many null examples to use
+
 sf1 = cell(nSubj,1);  sb1 = cell(nSubj,1);
 sf2 = cell(nSubj,1);  sb2 = cell(nSubj,1);  sc2 = cell(nSubj,1);
 
-parfor iSj = 1:nSubj
+for iSj = 1:nSubj
 
     sf1{iSj} = nan(1, nShuf, maxLag+1);
     sb1{iSj} = nan(1, nShuf, maxLag+1);   
@@ -83,7 +84,7 @@ parfor iSj = 1:nSubj
     end
 
     %% make predictions with trained models
-     preds = 1./(1+exp(-(X*betas + repmat(intercepts, [nSamples 1]))));
+    preds = 1./(1+exp(-(X*betas + repmat(intercepts, [nSamples 1]))));
     
     %% Prepare T matrix    
     Tf_Y =[3,4,7,8];    
@@ -106,7 +107,7 @@ parfor iSj = 1:nSubj
         TR2(ist,Tr_Y(ist))=1;
         TRauto(ist,unique([Tr_X1(ist),Tr_X2(ist)]))=1;
     end    
-           
+    
     %% Core sequence detection
     X=preds;
     Y=X;
@@ -134,9 +135,6 @@ parfor iSj = 1:nSubj
         for istate=1:length(Tf_Y)
             Xfwd=squeeze(Xmatrix(:,:,Tf_X2(istate))); 
             Xbkw=squeeze(Xmatrix(:,:,Tr_X2(istate)));
-% 
-%             Xfwd(:,Tf_Y(istate))=0;
-%             Xbkw(:,Tr_Y(istate))=0;
 
             tempF = pinv([Xfwd ones(length(Xfwd),1)])*Y;                
             betaF(ilag,istate,:)=tempF(Tf_X1(istate),:);  
@@ -166,10 +164,14 @@ parfor iSj = 1:nSubj
         sb1{iSj}(1,iShuf,2:end)=cc(1,:);
         
     end    
+    
 end
 
+
 sf1 = cell2mat(sf1);
-sb1 = cell2mat(sb1);
+sb1 = cell2mat(sb1)
+save('simulate_replay_longerlength_results.mat', 'sf1', 'sb1', 'TF', 'preds', 'nShuf', 'uniquePerms', 'maxLag', '-v7.3');
+stop % dont continue figure creation, only save results
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
