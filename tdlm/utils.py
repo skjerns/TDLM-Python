@@ -92,6 +92,7 @@ def unique_permutations(X, k=None):
     # http://www.mathworks.com/matlabcentral/fileexchange/authors/27434
     """
     # Count number of repetitions of each unique row, and get representative x
+
     X = np.array(X).squeeze()
     assert len(X) > 1
 
@@ -100,6 +101,14 @@ def unique_permutations(X, k=None):
     else:
         # [u uind x] = unique(X, 'rows'); % x codes unique rows with integers
         uniques, uind, c = np.unique(X, axis=0, return_index=True, return_counts=True)
+
+    max_perms = math.factorial(len(uniques))
+
+    if k is None:
+        k = max_perms;  # default to computing all unique permutations
+
+    if  k > max_perms:
+        raise ValueError('requested {k=} larger than all possible permutations')
 
     uniques = uniques.tolist()
     x = np.array([uniques.index(i) for i in X.tolist()])
@@ -110,8 +119,7 @@ def unique_permutations(X, k=None):
     # % computation of permutation
     # Basics
     n = len(X);
-    if k is None or k > nPerms:
-        k = nPerms;  # default to computing all unique permutations
+
 
     # % Identity permutation always included first:
     pInds = np.zeros([int(k), n]).astype(np.uint32)
@@ -269,7 +277,7 @@ def simulate_meeg(length, sfreq, n_channels=64, cov=None, autocorr=0.95):
     - autocorr: float, optional
         temporal correlation of each sample with its neighbour samples in time.
 
-    this code is losely based but optimized version of
+    this code is loosely based but optimized version of
          https://github.com/YunzheLiu/TDLM/blob/master/Simulate_Replay.m
 
     Returns:
@@ -518,7 +526,7 @@ def insert_events(data, insert_data, insert_labels, sequence, n_events,
 
 
 
-def create_travelling_wave(hz, length, sfreq, chs_pos, source_idx=0, speed=50):
+def create_travelling_wave(hz, seconds, sfreq, chs_pos, source_idx=0, speed=50):
     """
     Create a sinus wave of shape (size, len(sensor_pos)), where each
     entry in the second dimension is phase shifted according to propagation
@@ -553,7 +561,7 @@ def create_travelling_wave(hz, length, sfreq, chs_pos, source_idx=0, speed=50):
 
     # Number of sensors
     n_sensors = len(chs_pos)
-    size = int(length * sfreq)
+    size = int(seconds * sfreq)
 
     # Time array
     t = np.arange(size) / sfreq

@@ -25,8 +25,11 @@ jobs:
         release: R2024b  # Specify the MATLAB release you want to use
     - name: Set LD_LIBRARY_PATH for MATLAB
       run: echo "LD_LIBRARY_PATH=/opt/hostedtoolcache/MATLAB/2024.2.999/x64/bin/glnxa64:\$LD_LIBRARY_PATH" >> $GITHUB_ENV
-    - name: Debug MATLAB installation path
-      run: ls -R /opt/hostedtoolcache/MATLAB
+      
+    - name: Start MATLAB in idle mode
+      run: |
+        nohup matlab -batch "disp('MATLAB is now running and idle.'); pause(inf);" > matlab_idle.log 2>&1 &
+    
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v5
       with:

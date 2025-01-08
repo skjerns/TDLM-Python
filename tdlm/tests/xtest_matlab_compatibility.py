@@ -6,8 +6,16 @@ test if MATLAB original code gives same results as current implementation
 
 @author: simon.kern
 """
+
 import os
-import sys; sys.path.append(os.path.abspath('./matlab_code'))
+import sys
+
+try:
+    script_dir = os.path.dirname(__file__)
+    sys.path.append(os.path.abspath(f'{script_dir}/matlab_code'))
+except:
+    pass
+
 import unittest
 import mat73
 import numpy as np
@@ -39,7 +47,7 @@ class TestMatlab(unittest.TestCase):
 
         ml = get_matlab_engine()
         if not 'matlab_code' in ml.cd():
-            ml.cd('./matlab_code')
+            ml.cd(f'{script_dir}/matlab_code')
 
         repetitions = 15  # no k set
         with patch('numpy.random.permutation', lambda x: np.array(ml.randperm(x)).squeeze()-1):
@@ -127,14 +135,14 @@ class TestMatlab(unittest.TestCase):
         # `save('sequenceness_crosscorr_params.mat', 'rd', 'T', 'T2' )`
         # into the matlab script sequenceness_crosscorr.m at line 6
 
-        params = io.loadmat('./matlab_code/sequenceness_crosscorr_params.mat')
+        params = io.loadmat(f'{script_dir}/matlab_code/sequenceness_crosscorr_params.mat')
         tf = params['T']
         T2 = []
         rd = params['rd']
 
         ml = get_matlab_engine()
         if not 'matlab_code' in ml.cd():
-            ml.cd('./matlab_code')
+            ml.cd(f'{script_dir}/matlab_code')
         rd_ml = matlab.double(rd.tolist())
         tf_ml = matlab.double(tf.tolist())
         tb_ml = matlab.double(tf.T.tolist())
@@ -164,7 +172,7 @@ class TestMatlab(unittest.TestCase):
         implement Lasso regression differently. However, uperms is slightly
         differently implemented, so we need to monkey patch that.
         """
-        data = mat73.loadmat('./matlab_code/simulate_replay_results.mat')
+        data = mat73.loadmat(f'{script_dir}/matlab_code/simulate_replay_results.mat')
         preds = data['preds']
         tf = data['TF']
         sf_matlab = data['sf'].squeeze()
@@ -187,7 +195,7 @@ class TestMatlab(unittest.TestCase):
 
     def test_glm_matlab_alpha_correction(self):
         """test if alpha correction also gives the same results as MATLAB"""
-        data = mat73.loadmat('./matlab_code/simulate_replay_withalpha_results.mat')
+        data = mat73.loadmat(f'{script_dir}/matlab_code/simulate_replay_withalpha_results.mat')
         preds = data['preds']
         tf = data['TF']
         sf_matlab = data['sf'].squeeze()
@@ -215,7 +223,7 @@ class TestMatlab(unittest.TestCase):
 
     def test_glm_matlab_multistep(self):
         """test if multistep (2step) also gives the same results as MATLAB"""
-        data = mat73.loadmat('./matlab_code/simulate_replay_longerlength_results.mat')
+        data = mat73.loadmat(f'{script_dir}/matlab_code/simulate_replay_longerlength_results.mat')
         preds = data['preds']
         tf = data['TF']
         sf_matlab = data['sf1'].squeeze()
