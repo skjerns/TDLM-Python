@@ -93,7 +93,6 @@ def unique_permutations(X, k=None, max_true_trans=None):
         # need to store the discarded items to prevent running into a loop
         if max_true_trans is not None:
             discarded = set()
-            offset = _trans_overlap(seq1=seq, seq2=seq)>max_true_trans
 
         # add permutations to the set until we reach k
         while len(uperms) < k:
@@ -108,8 +107,6 @@ def unique_permutations(X, k=None, max_true_trans=None):
                     warnings.warn(f'Fewer valid permutations {len(uperms)=} possible than {k=} requested')
                     break
             uperms.add(perm)
-
-        print(len(uperms))
 
         # make sure the non-permuted version in position 0
         uperms.remove(seq)

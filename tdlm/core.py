@@ -137,7 +137,7 @@ def sequenceness_crosscorr(probas, tf, tb=None, n_shuf=1000, min_lag=0, max_lag=
 
 
 # @profile
-def compute_1step(probas, tf, tb=None, n_shuf=1000, min_lag=0, max_lag=50,
+def compute_1step(probas, tf, tb=None, n_shuf=100, min_lag=0, max_lag=50,
                   alpha_freq=None, seed=None):
     """
     Calculate 1-step-sequenceness for probability estimates and transitions.
@@ -182,7 +182,7 @@ def compute_1step(probas, tf, tb=None, n_shuf=1000, min_lag=0, max_lag=50,
         np.random.seed(seed)
     n_states = probas.shape[-1]
     # unique permutations
-    unique_perms = unique_permutations(np.arange(1, n_states + 1), n_shuf)
+    unique_perms = unique_permutations(np.arange(n_states), n_shuf)
 
     seq_fwd = nan(n_shuf, max_lag + 1)  # forward sequenceness
     seq_bkw = nan(n_shuf, max_lag + 1)  # backward sequencenes
@@ -239,7 +239,7 @@ def compute_2step(probas, tf, tb=None, n_steps=2, n_shuf=1000, min_lag=0, max_la
     # seq = tf2seq(tf)
     n_states = probas.shape[-1]
 
-    unique_perms = unique_permutations(np.arange(1, n_states + 1), n_shuf)
+    unique_perms = unique_permutations(np.arange(n_states), n_shuf)
 
     # create all two step transitions from our transition matrix
     tf_y = []
