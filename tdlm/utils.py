@@ -115,7 +115,7 @@ def unique_permutations(X, k=None, max_true_trans=None):
 
 
 
-def unique_permutations_orig(X, k=None):
+def unique_permutations_MATLAB(X, k=None):
     """
     original implementation of the unique permutation function from MATLAB
 
