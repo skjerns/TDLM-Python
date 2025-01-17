@@ -30,7 +30,7 @@ squash = lambda arr: np.ravel(arr, 'F')  # MATLAB uses Fortran style reshaping
 
 
 
-def _find_betas(preds: np.ndarray, n_states: int, max_lag: int, alpha_freq=None):
+def _find_betas(probas: np.ndarray, n_states: int, max_lag: int, alpha_freq=None):
     """for prediction matrix X (states x time), get transitions up to max_lag.
     Similar to cross-correlation, i.e. shift rows of matrix iteratively
 
@@ -40,7 +40,7 @@ def _find_betas(preds: np.ndarray, n_states: int, max_lag: int, alpha_freq=None)
 
     # design matrix is now a matrix of nsamples X (n_states*max_lag)
     # with each column a shifted version of the state vector (shape=nsamples)
-    dm = np.hstack([toeplitz(preds[:, kk], [zeros(n_bins, 1)])[:, 1:] for kk in range(n_states)])
+    dm = np.hstack([toeplitz(probas[:, kk], [zeros(n_bins, 1)])[:, 1:] for kk in range(n_states)])
 
     betas = nan(n_states * max_lag, n_states);
 
@@ -58,7 +58,7 @@ def _find_betas(preds: np.ndarray, n_states: int, max_lag: int, alpha_freq=None)
         # Now find coefficients that solve the linear regression for this timelag
         # this a the second stage regression
         # print(ilag_X.shape)
-        ilag_betas = pinv(ilag_X) @ preds;  # if SVD fails, use slow, exact solution
+        ilag_betas = pinv(ilag_X) @ probas;  # if SVD fails, use slow, exact solution
         betas[ilag_idx, :] = ilag_betas[0:-1, :];
 
     return betas
@@ -78,25 +78,25 @@ def _numba_roll(X, shift):
 
 
 # @njit
-def _cross_correlation(preds, tf, tb, max_lag=40, min_lag=0):
+def _cross_correlation(probas, tf, tb, max_lag=40, min_lag=0):
     """
     Computes sequenceness by cross-correlation
 
     taken from https://github.com/tobywise/online-aversive-learning
     """
-    preds_f = preds @ tf
-    preds_b = preds @ tb
+    probas_f = probas @ tf
+    probas_b = probas @ tb
 
     ff = np.zeros(max_lag - min_lag)
     fb = np.zeros(max_lag - min_lag)
 
     for lag in range(min_lag, max_lag):
 
-        r = np.corrcoef(preds[lag:, :].T, _numba_roll(preds_f, lag)[lag:, :].T)
+        r = np.corrcoef(probas[lag:, :].T, _numba_roll(probas_f, lag)[lag:, :].T)
         r = np.diag(r, k=tf.shape[0])
         forward_mean_corr = np.nanmean(r)
 
-        r = np.corrcoef(preds[lag:, :].T, _numba_roll(preds_b, lag)[lag:, :].T)
+        r = np.corrcoef(probas[lag:, :].T, _numba_roll(probas_b, lag)[lag:, :].T)
         r = np.diag(r, k=tb.shape[0])
         backward_mean_corr = np.nanmean(r)
 
@@ -105,12 +105,12 @@ def _cross_correlation(preds, tf, tb, max_lag=40, min_lag=0):
 
     return ff, fb
 
-def sequenceness_crosscorr(preds, tf, tb=None, n_shuf=1000, min_lag=0, max_lag=50,
+def sequenceness_crosscorr(probas, tf, tb=None, n_shuf=1000, min_lag=0, max_lag=50,
                            alpha_freq=None):
 
-    n_states = preds.shape[-1]
+    n_states = probas.shape[-1]
     # unique permutations
-    _, unique_perms, _ = unique_permutations(np.arange(1, n_states + 1), n_shuf)
+    unique_perms = unique_permutations(np.arange(1, n_states + 1), n_shuf)
 
 
     if tb is None:
@@ -126,7 +126,7 @@ def sequenceness_crosscorr(preds, tf, tb=None, n_shuf=1000, min_lag=0, max_lag=5
         rp = unique_perms[i, :]
         tf_perm = tf[rp, :][:, rp]
         tb_perm = tb[rp, :][:, rp]
-        seq_fwd_corr[i, :-1], seq_bkw_corr[i, :-1] = _cross_correlation(preds,
+        seq_fwd_corr[i, :-1], seq_bkw_corr[i, :-1] = _cross_correlation(probas,
                                                                         tf_perm,
                                                                         tb_perm,
                                                                         max_lag=max_lag,
@@ -137,14 +137,14 @@ def sequenceness_crosscorr(preds, tf, tb=None, n_shuf=1000, min_lag=0, max_lag=5
 
 
 # @profile
-def compute_1step(preds, tf, tb=None, n_shuf=1000, min_lag=0, max_lag=50,
+def compute_1step(probas, tf, tb=None, n_shuf=1000, min_lag=0, max_lag=50,
                   alpha_freq=None, seed=None):
     """
     Calculate 1-step-sequenceness for probability estimates and transitions.
 
     Parameters
     ----------
-    preds : np.ndarray
+    probas : np.ndarray
         2d matrix with predictions, shape= (n_states, times), where each
         timestep contains n_states prediction values for states at that time
     tf : np.ndarray
@@ -157,7 +157,7 @@ def compute_1step(preds, tf, tb=None, n_shuf=1000, min_lag=0, max_lag=50,
         number of random shuffles to be done for permutation testing.
     max_lag : int
         maximum time lag to calculate. Time dimension is measured in sample
-        steps of the preds time dimension.
+        steps of the probas time dimension.
     alpha_freq : int, optional
         Alpha oscillation frequency to control for. Time shifted copies of the
         signal are added in this frequency to the GLM, acting as a confounds.
@@ -180,9 +180,9 @@ def compute_1step(preds, tf, tb=None, n_shuf=1000, min_lag=0, max_lag=50,
 
     if seed is not None:
         np.random.seed(seed)
-    n_states = preds.shape[-1]
+    n_states = probas.shape[-1]
     # unique permutations
-    _, unique_perms, _ = unique_permutations(np.arange(1, n_states + 1), n_shuf)
+    unique_perms = unique_permutations(np.arange(1, n_states + 1), n_shuf)
 
     seq_fwd = nan(n_shuf, max_lag + 1)  # forward sequenceness
     seq_bkw = nan(n_shuf, max_lag + 1)  # backward sequencenes
@@ -193,7 +193,7 @@ def compute_1step(preds, tf, tb=None, n_shuf=1000, min_lag=0, max_lag=50,
 
     ## GLM: state regression, with other lags
 
-    betas = _find_betas(preds, n_states, max_lag, alpha_freq=alpha_freq)
+    betas = _find_betas(probas, n_states, max_lag, alpha_freq=alpha_freq)
     # betas = find_betas_optimized(X, n_states, max_lag, alpha_freq=alpha_freq)
     # np.testing.assert_array_almost_equal(betas, betas2, decimal= 12)
 
@@ -219,21 +219,27 @@ def compute_1step(preds, tf, tb=None, n_shuf=1000, min_lag=0, max_lag=50,
     return seq_fwd, seq_bkw
 
 
-def compute_2step(preds, tf, tb=None, n_steps=2, n_shuf=1000, min_lag=0, max_lag=50,
-                   alpha_freq=None, seed=None):
+def compute_2step(probas, tf, tb=None, n_steps=2, n_shuf=1000, min_lag=0, max_lag=50,
+                  alpha_freq=None, seed=None):
     """
     # 2step tdlm version. for now this is a copy of the MATLAB code, did not
-    have time yet to implement the generalized version
+    have time yet to implement the generalized version.
+
+    I do think there are conceptual problems with this implementation,
+    therefore, I do not recommend using the method without further consideration
+    e.g. if our data contains A->B, but never C, we will _still_ find backwards
+    sequenceness evidence simply because (C*B) is regressed on A for the back-
+    wards case and will induce spurious sequenceness of A->B->C when there is
+    no triplet replay
     """
     if seed is not None:
         np.random.seed(seed)
-    assert n_steps==2, "need to implement >2 steps. scaffold is there though"
+    assert n_steps==2, " >2 steps is not implemented yet"
 
-    seq = tf2seq(tf)
+    # seq = tf2seq(tf)
+    n_states = probas.shape[-1]
 
-    n_states = preds.shape[-1]
-
-    _, unique_perms, _ = unique_permutations(np.arange(1, n_states + 1), n_shuf)
+    unique_perms = unique_permutations(np.arange(1, n_states + 1), n_shuf)
 
     # create all two step transitions from our transition matrix
     tf_y = []
@@ -265,10 +271,10 @@ def compute_2step(preds, tf, tb=None, n_steps=2, n_shuf=1000, min_lag=0, max_lag
         tr_auto[i, np.unique([tr_x1[i], tr_x2[i]])]=1;
 
 
-    x2_bin = np.full([max_lag, len(preds)] + [n_states] * n_steps, np.nan)
+    x2_bin = np.full([max_lag, len(probas)] + [n_states] * n_steps, np.nan)
 
     # Initialize variables
-    x = preds
+    x = probas
     y = x
 
     # First loop
@@ -337,7 +343,7 @@ if __name__=='__main__':
     import mat73
 
     data = mat73.loadmat('./tests/matlab_code/simulate_replay_longerlength_results.mat')
-    preds = data['preds']
+    probas = data['preds']
     tf = data['TF']
     sf_matlab = data['sf1'].squeeze()
     sb_matlab = data['sb1'].squeeze()
@@ -348,5 +354,5 @@ if __name__=='__main__':
     # monkey patch uperms, to give equivalent results to MATLAB
         # print(tdlm.utils.unique_permutations([1,2,3]))
     with stimer:
-        sf, sb = compute_2step(preds, tf, max_lag=max_lag,
+        sf, sb = compute_2step(probas, tf, max_lag=max_lag,
                                     n_shuf=n_shuf)

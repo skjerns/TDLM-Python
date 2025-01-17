@@ -84,6 +84,8 @@ def unique_permutations(X, k=None, max_true_trans=None):
             for perm in uperms[1:]:
                 if _trans_overlap(seq1=perm, trans2=trans)<=max_true_trans:
                     uperms_filtered += [perm]
+
+    # if upper bound is given, draw valid samples until we have enough
     else:
         seq = tuple(X)
         uperms = set([seq])
@@ -91,20 +93,23 @@ def unique_permutations(X, k=None, max_true_trans=None):
         # need to store the discarded items to prevent running into a loop
         if max_true_trans is not None:
             discarded = set()
+            offset = _trans_overlap(seq1=seq, seq2=seq)>max_true_trans
 
         # add permutations to the set until we reach k
         while len(uperms) < k:
             perm = tuple(np.random.permutation(seq))
+
             # only add if it contains non-true transitions
             if max_true_trans is not None:
-                if len(discarded) + len(uperms) == max_perms:
-                    warnings.warn(f'Fewer valid permutations {len(uperms)=} possible than {k=} requested')
-                    break
                 if _trans_overlap(seq1=perm, trans2=trans)>max_true_trans:
                     discarded.add(perm)
                     continue
-
+                if (len(discarded.union(uperms))) == max_perms:
+                    warnings.warn(f'Fewer valid permutations {len(uperms)=} possible than {k=} requested')
+                    break
             uperms.add(perm)
+
+        print(len(uperms))
 
         # make sure the non-permuted version in position 0
         uperms.remove(seq)
@@ -115,8 +120,10 @@ def unique_permutations(X, k=None, max_true_trans=None):
 
 
 
-def unique_permutations_MATLAB(X, k=None):
+def _unique_permutations_MATLAB(X, k=None):
     """
+    DEPRECATED
+
     original implementation of the unique permutation function from MATLAB
 
     #uperms: unique permutations of an input vector or rows of an input matrix
