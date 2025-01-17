@@ -11,8 +11,6 @@ Temporally Delayed Linear Modeling (TDLM) is a method used to quantify the "sequ
 
 TDLM works by creating a linear model that incorporates time delays between different elements of the sequence. By introducing these delays, the model can capture the temporal dependencies within the sequence. For instance, in the context of analyzing human behavior, TDLM can help identify patterns such as the likelihood of certain reactivation events following others with a specific time lag.
 
-
-
 ## Installation
 
 `pip install git+https://github.com/skjerns/TDLM-Python/`
@@ -35,7 +33,7 @@ proba = ... # get your probability matrix somewhere
 # A [0, 1, 0]
 # B [0, 0, 1]
 # C [1, 0, 0]
-# you can also create it via `tdlm.utils.seq2tf('ABC')`
+# you can also create it via `tdlm.utils.seq2tf('ABCA')`
 tf = [[0, 1, 0], [ 0, 0, 1], [1, 0 , 0]]  # transition matrix
 
 # next, input these two variables into the algorithm to calculate
@@ -54,6 +52,23 @@ sequenceness_fwd, sequenceness_bkw, * = tdlm.compute_1step(proba, tf)
 tdlm.plotting.plot_sequenceness(sequenceness_fwd, sequenceness_bkw)
 ```
 
+## Functionality
+
+Currently, three different flavours are implemented: Cross-correlation, 1- and 2-step TDLM. More steps could be implemented easily, however, suffer from unclear statistical controls.
+
+```python
+# 'classical' cross correlation approach as in Kurth-Nelson 2016
+tdlm.cross_correlation(preds, tf)
+
+# 1-step TDLM, e.g. looking for transitions A->B, B->C, C->D independently, ...
+tdlm.compute_1step(proba, tf)
+
+# 2-step TDLM, e.g. looking for transitions (A->B)->C, (B->C)->D, ...
+tdlm.compute_2step(proba, tf)
+```
+
+  
+
 ## ToDos / Contribute
 
 Currently the repo is still quite bare, only providing basic functionality. I have created some [Issues](https://github.com/skjerns/TDLM-Python/issues) to get started. Designing a package is always challenging, as design choices will be difficult to revert, so feel free to contribute and discuss this.
@@ -61,10 +76,6 @@ Currently the repo is still quite bare, only providing basic functionality. I ha
 **design decisions:**
 
 * all time dimensions should be in sample steps. E.g. `max_lag=50` means 50 steps in sample space, disregarding the actual sample frequency. It is up to the user to calculate the fitting times.
-
-* The base function for all computations should be `compute_glm` or `compute_crosscorr`, all other functions should use this function modularly to their needs
-
-* Cross correlation and GLM are two different base function that can be used. Other functions take a parameter which is either `glm` or `crosscorr` to denote which function is used. This way it is theoretically possible to extend the repository using other functions as well (e.g. granger causality, which is basically a flavor of crosscorr I guess)
 
 * Transition matrices should be format of a binary matrix. Helper functions are provided to convert a sequence string in format `ABC_DEF` denoting transitions from A->B->C and D->E->F.
 
