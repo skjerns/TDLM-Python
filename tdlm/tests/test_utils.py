@@ -138,14 +138,6 @@ class TestUtils(unittest.TestCase):
         with self.assertRaises(ValueError):
             perms = unique_permutations(X, k=121)
 
-        import tdlm
-        X = np.arange(10)
-        asd
-        with stimer:
-            perms = unique_permutations(X, k=1000)
-
-        with stimer:
-            perms = tdlm.utils.unique_permutations_orig(X, k=1000)
 
 if __name__=='__main__':
     unittest.main()
