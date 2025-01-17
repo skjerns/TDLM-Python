@@ -8,7 +8,7 @@ import math
 from scipy import io
 from tqdm import tqdm
 from tdlm.utils import create_travelling_wave, unique_permutations
-from tdlm.utils import simulate_meeg
+from tdlm.utils import simulate_meeg, _trans_overlap
 import matplotlib.pyplot as plt
 
 
@@ -103,6 +103,49 @@ class TestUtils(unittest.TestCase):
     def test_simulate_meeg(self):
         data = simulate_meeg(60, 100)
 
+
+    def test_uperms(self):
+        """test whether new implementation of unique_permutations works as intended"""
+        X = np.arange(5)
+
+        for i in range(5):
+            perms = unique_permutations(X, max_true_trans=i)
+            for perm in perms[1:]:
+                assert _trans_overlap(X, perm)<=i
+            assert len(perms)<=120-4+i
+
+        for i in range(5):
+            perms = unique_permutations(X, k=119, max_true_trans=i)
+            for perm in perms[1:]:
+                assert _trans_overlap(X, perm)<=i
+            assert len(perms)<=120-4+i
+
+        for i in range(5):
+            perms = unique_permutations(X, k=40, max_true_trans=i)
+            for perm in perms[1:]:
+                assert _trans_overlap(X, perm)<=i
+            assert len(perms)==40
+
+        for i in range(5):
+            perms = unique_permutations(X, k=54, max_true_trans=i)
+            for perm in perms[1:]:
+                assert _trans_overlap(X, perm)<=i
+            assert len(perms)==54
+
+        perms = unique_permutations(X, max_true_trans=6)
+        assert len(perms)==120
+
+        with self.assertRaises(ValueError):
+            perms = unique_permutations(X, k=121)
+
+        import tdlm
+        X = np.arange(10)
+        asd
+        with stimer:
+            perms = unique_permutations(X, k=1000)
+
+        with stimer:
+            perms = tdlm.utils.unique_permutations_orig(X, k=1000)
 
 if __name__=='__main__':
     unittest.main()

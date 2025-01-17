@@ -10,8 +10,11 @@ import hashlib
 import math
 import numpy as np
 import pandas as pd
+import warnings
 from numpy.linalg import pinv, eigh
 from scipy.signal import lfilter
+from itertools import permutations
+
 def hash_array(arr, dtype=np.int64, truncate=8):
     """
     create a persistent hash for a numpy array based on the byte representation
@@ -36,8 +39,86 @@ def hash_array(arr, dtype=np.int64, truncate=8):
     return sha1_hash[:truncate]
 
 
-def unique_permutations(X, k=None):
+def _trans_overlap(seq1=None, seq2=None, trans1=None, trans2=None):
     """
+    calculate how many overlapping 1 step transitions exist between
+    seq1 and seq2. For optimization reasons instead of the sequence, already
+    computed transitions can also be supplied
+
+    """
+    if trans1 is None:
+        trans1 = set(zip(seq1[:-1], seq1[1:]))
+    if trans2 is None:
+        trans2 = set(zip(seq2[:-1], seq2[1:]))
+    return len(trans1.intersection(trans2))
+
+
+def unique_permutations(X, k=None, max_true_trans=None):
+    """"""
+    X = np.array(X).squeeze()
+    assert X.ndim==1
+    assert len(X) > 1
+
+    uniques, uind, c = np.unique(X, return_index=True, return_counts=True)
+
+    max_perms = math.factorial(len(uniques))
+
+    if k is None:
+        k = max_perms;  # default to computing all unique permutations
+
+    if  k > max_perms:
+        raise ValueError(f'requested {k=} larger than all possible permutations')
+
+
+    # enumerate all transitions in case max_overlap is set
+    trans = set(zip(X[:-1], X[1:]))
+
+    if k is None:
+        # if all permutations are requested, fastest way is to simply enumerate
+        generator = permutations(X)
+        # make sure the non-permuted version in position 0
+        uperms = [next(generator)]
+        uperms += set(permutations(X))
+        if max_true_trans:
+            uperms_filtered = []
+            for perm in uperms[1:]:
+                if _trans_overlap(seq1=perm, trans2=trans)<=max_true_trans:
+                    uperms_filtered += [perm]
+    else:
+        seq = tuple(X)
+        uperms = set([seq])
+
+        # need to store the discarded items to prevent running into a loop
+        if max_true_trans is not None:
+            discarded = set()
+
+        # add permutations to the set until we reach k
+        while len(uperms) < k:
+            perm = tuple(np.random.permutation(seq))
+            # only add if it contains non-true transitions
+            if max_true_trans is not None:
+                if len(discarded) + len(uperms) == max_perms:
+                    warnings.warn(f'Fewer valid permutations {len(uperms)=} possible than {k=} requested')
+                    break
+                if _trans_overlap(seq1=perm, trans2=trans)>max_true_trans:
+                    discarded.add(perm)
+                    continue
+
+            uperms.add(perm)
+
+        # make sure the non-permuted version in position 0
+        uperms.remove(seq)
+        all_perms = list([seq])
+        all_perms += uperms
+
+    return np.array(all_perms)
+
+
+
+def unique_permutations_orig(X, k=None):
+    """
+    original implementation of the unique permutation function from MATLAB
+
     #uperms: unique permutations of an input vector or rows of an input matrix
     # Usage:  nPerms              = uperms(X)
     #        [nPerms pInds]       = uperms(X, k)
