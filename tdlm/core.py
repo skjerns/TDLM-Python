@@ -138,7 +138,7 @@ def sequenceness_crosscorr(probas, tf, tb=None, n_shuf=1000, min_lag=0, max_lag=
 
 # @profile
 def compute_1step(probas, tf, tb=None, n_shuf=100, min_lag=0, max_lag=50,
-                  alpha_freq=None, seed=None):
+                  alpha_freq=None, max_true_trans=None, seed=None):
     """
     Calculate 1-step-sequenceness for probability estimates and transitions.
 
@@ -163,6 +163,12 @@ def compute_1step(probas, tf, tb=None, n_shuf=100, min_lag=0, max_lag=50,
         signal are added in this frequency to the GLM, acting as a confounds.
         Warning: Must be supplied in sample points, not in Hertz!
         The default is None.
+    max_true_trans : int, optional
+        Maximum number of transitions that should be be overlapping between the
+        real sequence and shuffles. E.g. if your sequence is A->B->C, the
+        permutation B->C->A would contain one overlapping transition B->C.
+        Setting max_true_trans=0 would remove this permutation from the test.
+        The default is None, i.e. no limit.
     n_steps : int, optional
         number of transition steps to look for. Not implemented yet.
         The default is 1.
@@ -177,15 +183,22 @@ def compute_1step(probas, tf, tb=None, n_shuf=100, min_lag=0, max_lag=50,
         backward sequencess for all time lags and shuffles. Row 0 is the
         non-shuffled version. First lag is NAN as it is undefined for lag = 0
     """
+    # implicit conversion off probability lists to arrays
+    probas = np.array(probas)
+    assert probas.ndim==2, 'probas must be 2d but is {probas.ndim=}'
+
 
     if seed is not None:
         np.random.seed(seed)
     n_states = probas.shape[-1]
     # unique permutations
-    unique_perms = unique_permutations(np.arange(n_states), n_shuf)
+    unique_perms = unique_permutations(np.arange(n_states), n_shuf,
+                                       max_true_trans=max_true_trans)
 
-    seq_fwd = nan(n_shuf, max_lag + 1)  # forward sequenceness
-    seq_bkw = nan(n_shuf, max_lag + 1)  # backward sequencenes
+    n_perms = len(unique_perms)  # this might be different to requested n_shuf!
+
+    seq_fwd = nan(n_perms, max_lag + 1)  # forward sequenceness
+    seq_bkw = nan(n_perms, max_lag + 1)  # backward sequencenes
 
     if tb is None:
         # backwards is transpose of forwards
@@ -200,7 +213,7 @@ def compute_1step(probas, tf, tb=None, n_shuf=100, min_lag=0, max_lag=50,
     # reshape the coeffs for regression to be in the order of ilag x (n_states x n_states)
     betasn_ilag_stage = np.reshape(betas, [max_lag, n_states ** 2], order='F');
 
-    for i in range(n_shuf):
+    for i in range(n_perms):
         rp = unique_perms[i, :]  # select next unique permutation of transitions
         tf_perm = tf[rp, :][:, rp]
         tb_perm = tb[rp, :][:, rp]
@@ -219,7 +232,7 @@ def compute_1step(probas, tf, tb=None, n_shuf=100, min_lag=0, max_lag=50,
     return seq_fwd, seq_bkw
 
 
-def compute_2step(probas, tf, tb=None, n_steps=2, n_shuf=1000, min_lag=0, max_lag=50,
+def compute_2step(probas, tf, tb=None, n_steps=2, n_shuf=None, min_lag=0, max_lag=50,
                   alpha_freq=None, seed=None):
     """
     # 2step tdlm version. for now this is a copy of the MATLAB code, did not
@@ -240,6 +253,8 @@ def compute_2step(probas, tf, tb=None, n_steps=2, n_shuf=1000, min_lag=0, max_la
     n_states = probas.shape[-1]
 
     unique_perms = unique_permutations(np.arange(n_states), n_shuf)
+
+    n_perms = len(unique_perms)  # this might be different to requested n_shuf!
 
     # create all two step transitions from our transition matrix
     tf_y = []
@@ -307,11 +322,11 @@ def compute_2step(probas, tf, tb=None, n_steps=2, n_shuf=1000, min_lag=0, max_la
     beta_f = beta_f.reshape((max_lag, len(tf_y) * n_states), order='F')
     beta_b = beta_b.reshape((max_lag, len(tr_y) * n_states), order='F')
 
-    seq_fwd = nan(n_shuf, max_lag+1);
-    seq_bkw = nan(n_shuf, max_lag+1);
+    seq_fwd = nan(n_perms, max_lag+1);
+    seq_bkw = nan(n_perms, max_lag+1);
 
     # Third loop
-    for shuffle_idx in range(n_shuf):
+    for shuffle_idx in range(n_perms):
         random_permutation = unique_perms[shuffle_idx, :]
 
         # 2nd level

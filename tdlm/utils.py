@@ -373,6 +373,10 @@ def simulate_meeg(length, sfreq, n_channels=64, cov=None, autocorr=0.95):
 
     n_samples = int(length * sfreq)  # Total number of samples
 
+    if str(type(cov))=="<class 'mne.cov.Covariance'>":
+        # extract cov from mne Covariance object
+        cov = cov.data
+
     if cov is not None and n_channels is not None:
         assert len(cov)==n_channels, \
             'n_channels must be the same as covariance size'
@@ -631,7 +635,7 @@ def create_travelling_wave(hz, seconds, sfreq, chs_pos, source_idx=0, speed=50):
         Index of the sensor/channel at which the oscillation should start
         with phase 0 and travel from there to all other positions.
     speed : float, optional
-        Speed of wave in cm/second. The default is 50cm/second which is
+        Speed of wave in m/second. The default is 0.5m/second which is
         a good average for alpha waves.
 
     Returns
@@ -641,6 +645,8 @@ def create_travelling_wave(hz, seconds, sfreq, chs_pos, source_idx=0, speed=50):
     """
     if speed == 0 :
         speed = np.inf
+
+    speed = speed * 100  # convert to cm/s, as positions are in cm
     # Convert sensor_pos to a numpy array if it's not already
     chs_pos = np.array(chs_pos)
 

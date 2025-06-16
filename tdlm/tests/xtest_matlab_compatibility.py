@@ -4,6 +4,9 @@ Created on Thu Apr 18 15:24:08 2024
 
 test if MATLAB original code gives same results as current implementation
 
+TEST IS DISABLED:
+MATLAB enginge for Python does not run on GitHub Actions yet.
+
 @author: simon.kern
 """
 
@@ -27,7 +30,7 @@ from matlab_funcs import get_matlab_engine, autoconvert
 import matlab
 
 import tdlm
-from tdlm.utils import unique_permutations as uperms
+from tdlm.utils import _unique_permutations_MATLAB as uperms
 from tdlm.core import _cross_correlation
 
 def uperms_matlab(*args, **kwargs):
