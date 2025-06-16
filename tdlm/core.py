@@ -145,7 +145,7 @@ def compute_1step(probas, tf, tb=None, n_shuf=100, min_lag=0, max_lag=50,
     Parameters
     ----------
     probas : np.ndarray
-        2d matrix with predictions, shape= (n_states, times), where each
+        2d matrix with predictions, shape= (timesteps, n_states), where each
         timestep contains n_states prediction values for states at that time
     tf : np.ndarray
         transition matrix with expected transitions for the underlying states.
@@ -185,8 +185,12 @@ def compute_1step(probas, tf, tb=None, n_shuf=100, min_lag=0, max_lag=50,
     """
     # implicit conversion off probability lists to arrays
     probas = np.array(probas)
-    assert probas.ndim==2, 'probas must be 2d but is {probas.ndim=}'
 
+    # checks and balances
+    assert probas.ndim==2, 'probas must be 2d but is {probas.ndim=}'
+    assert tf.ndim==2, f'transition matrix must be 2d but is {tf.ndim=}'
+    assert tf.shape[0]==tf.shape[1], f'transition matrix must be square {tf.shape=}'
+    assert len(tf)==probas.shape[1], f'{len(tf)=} must be same as {probas.shape[1]}'
 
     if seed is not None:
         np.random.seed(seed)
