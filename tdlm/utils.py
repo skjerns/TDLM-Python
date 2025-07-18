@@ -67,7 +67,7 @@ def unique_permutations(X, k=None, max_true_trans=None):
         k = max_perms;  # default to computing all unique permutations
 
     if  k > max_perms:
-        raise ValueError(f'requested {k=} larger than all possible permutations')
+        raise ValueError(f'requested {k=} larger than all possible permutations {max_perms=}')
 
 
     # enumerate all transitions in case max_overlap is set
