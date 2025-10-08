@@ -10,7 +10,7 @@ setup(name='tdlm-python',
       author_email='nomail@nomail.com',
       license='GPLv4',
       packages=['tdlm'],
-      install_requires=['numpy', 'numba'],
+      install_requires=['numpy', 'numba', 'seaborn'],
       zip_safe=False,
       classifiers=[
           "Programming Language :: Python :: 3",
