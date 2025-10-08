@@ -14,6 +14,7 @@ from tdlm import utils
 from scipy.linalg import toeplitz
 from numba import njit
 from scipy.stats import zscore as zscore_func  # with alias to prevent clash
+from scipy.stats import ttest_1samp
 from joblib import Parallel, delayed
 from numpy.linalg import pinv
 
@@ -40,7 +41,9 @@ def _find_betas(probas: np.ndarray, n_states: int, max_lag: int, alpha_freq=None
 
     # design matrix is now a matrix of nsamples X (n_states*max_lag)
     # with each column a shifted version of the state vector (shape=nsamples)
-    dm = np.hstack([toeplitz(probas[:, kk], [zeros(n_bins, 1)])[:, 1:] for kk in range(n_states)])
+    dm = np.hstack([toeplitz(probas[:, kk].ravel(),
+                             np.ravel([zeros(n_bins, 1)]))[:, 1:]
+                    for kk in range(n_states)])
 
     betas = nan(n_states * max_lag, n_states);
 
@@ -104,6 +107,21 @@ def _cross_correlation(probas, tf, tb, max_lag=40, min_lag=0):
         fb[lag - min_lag] = backward_mean_corr
 
     return ff, fb
+
+
+def signflit_test(sx, n_perms=1000, rng=None):
+    """run signflip permutation test to check for significant sequenceness"""
+    assert sx.ndim==2, 'sx must be 2D'
+    t_maxes = []
+    t_true = ttest_1samp(sx, axis=0, popmean=0)[1].max()
+    for i in range(n_perms):
+        bits = np.random.choice([-1, 1], size=(len(sx)))
+        sx_perm = (sx.T*bits).T
+        t_perm = ttest_1samp(sx_perm, axis=0, popmean=0)[1]
+        t_maxes += [np.max(t_perm)]
+    p = (t_true>t_maxes).mean()
+    return p, t_true, t_maxes
+
 
 def sequenceness_crosscorr(probas, tf, tb=None, n_shuf=1000, min_lag=0, max_lag=50,
                            alpha_freq=None):

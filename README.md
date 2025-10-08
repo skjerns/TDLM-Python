@@ -67,6 +67,22 @@ tdlm.compute_1step(proba, tf)
 tdlm.compute_2step(proba, tf)
 ```
 
+## Signflip permutation test
+
+To get the classical permutation test as in Liu et al (2021), simply use the `compute_1step.(... n_shuf=X)`.
+However, the more robust and less conservative signflip test is also available, use
+
+```python
+sf, sb = compute_1step(...)
+p_fwd, t_fwd, t_perms = signflip_test(sf, n_perms=1000)
+```
+
+to plot your results, use this function
+
+```
+plot_tval_distribution(t_fwd, t_perms)
+```
+
   
 
 ## ToDos / Contribute

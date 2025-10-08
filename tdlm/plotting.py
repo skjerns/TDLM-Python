@@ -161,7 +161,30 @@ def plot_sequenceness(seq_fwd, seq_bkw, sfreq=100, ax=None, title=None,
     return ax
 
 
+def plot_tval_distribution(t_true, t_maxes, ax=None):
+    if ax is None:
+        fig, ax = plt.subplots(1, 1)
+    bins = np.histogram_bin_edges(t_maxes, bins=min(100, len(t_maxes)))
+    ax = sns.histplot(t_maxes, bins=bins, ax=ax, stat="count")
 
+    # Find the bin that the first permutation falls into
+    bin_index = np.searchsorted(bins, t_true)
+
+    # Highlight the bin with red color
+    axmin = bins[bin_index]
+    axmax = bins[bin_index + 1] if (bin_index+1)<len(bins) else axmin*1.02
+    p = (t_true>t_maxes).mean()
+    p05 = np.quantile(t_maxes, 0.05)
+    p001 = np.quantile(t_maxes, 0.001)
+    ax.axvspan(axmin, axmax, color="red", alpha=0.5, label=f"observed\n{p=:.3f}")
+
+    ax.vlines(p05, *ax.get_ylim(), label='p=0.05', color='black')
+    ax.vlines(p001, *ax.get_ylim(), label='p=0.001', color='black')
+    # Add labels and title
+    ax.set_xlabel("tvalue distribution")
+    ax.set_ylabel("Count")
+    # ax.text(ax.get_xlim()[1]*0.97, ax.get_ylim()[1]*0.95, f'{p=:.3f}', horizontalalignment='right')
+    ax.legend( fontsize=12, loc="upper left")
 
 def plot_permutation_distribution(sx, ax=None, title=None, **kwargs):
     """plots the means of a TDLM permutation results.

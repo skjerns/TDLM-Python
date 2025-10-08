@@ -518,17 +518,25 @@ def insert_events(data, insert_data, insert_labels, sequence, n_events,
     #             'trange': 0}
 
     # Calculate probability distribution based on the specified distribution type
-    if distribution=='constant':
-        p = np.ones(len(data))
-        p = p/p.sum()
-    elif distribution=='decreasing':
-        p = np.linspace(1, 0, len(data))**2
-        p = p/p.sum()
-    elif distribution=='increasing':
-        p = np.linspace(0, 1, len(data))**2
-        p = p/p.sum()
+    if isinstance(distribution, str):
+        if distribution=='constant':
+            p = np.ones(len(data))
+            p = p/p.sum()
+        elif distribution=='decreasing':
+            p = np.linspace(1, 0, len(data))**2
+            p = p/p.sum()
+        elif distribution=='increasing':
+            p = np.linspace(0, 1, len(data))**2
+            p = p/p.sum()
+        else:
+            raise ValueError(f'unknown {distribution=}')
+    elif isinstance(distribution, (list, np.ndarray)):
+        distribution = np.array(distribution)
+        assert len(distribution)==len(data), f'{distribution.shape=} != {len(data)=}'
+        assert np.isclose(distribution.sum(), 1), f'{distribution.sum()=} must be sum=1'
+        p = distribution
     else:
-        raise Exception(f'unknown distribution {distribution}')
+        raise ValueError(f'distribution must be string or p-vector, {distribution=}')
 
     # Calculate length of the replay sequence
     padding = n_steps*lag + data.shape[-1]
