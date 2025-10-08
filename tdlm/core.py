@@ -110,19 +110,46 @@ def _cross_correlation(probas, tf, tb, max_lag=40, min_lag=0):
 
 
 def signflit_test(sx, n_perms=1000, rng=None):
-    """run signflip permutation test to check for significant sequenceness"""
-    assert sx.ndim==2, 'sx must be 2D'
-    t_maxes = []
-    t_true = ttest_1samp(sx, axis=0, popmean=0, nan_policy='omit')[0]
+    """Sign-flip permutation test using vectorized permutations."""
+    if sx.ndim != 2:
+        raise AssertionError('sx must be 2D')
+
+    # Setup RNG
+    if rng is None:
+        rng = np.random.default_rng()
+
+    # Precompute per-column n, mean, std (NaNs omitted)
+    mask = ~np.isnan(sx)
+    n = mask.sum(axis=0)
+    x_filled = np.where(mask, sx, 0.0)
+
+    # ddof=1 to match one-sample t-test
+    s = np.nanstd(sx, axis=0, ddof=1)
+    with np.errstate(invalid='ignore', divide='ignore'):
+        se = s / np.sqrt(n)
+        t_true = np.nanmean(sx, axis=0) / se
+
     t_true_max = np.nanmax(t_true)
 
-    for i in range(n_perms):
-        bits = np.random.choice([-1, 1], size=(len(sx)))
-        sx_perm = (sx.T*bits).T
-        t_perm = ttest_1samp(sx_perm, axis=0, popmean=0)[0]
-        t_maxes += [np.nanmax(t_perm)]
-    p = (t_true_max<t_maxes).mean()
-    return p, t_true_max, t_maxes
+    # Vectorized sign-flips: shape (n_perms, n_obs)
+    n_obs = sx.shape[0]
+    flips = rng.integers(0, 2, size=(n_perms, n_obs)).astype(np.int8) * 2 - 1
+
+    # Permuted means: (flips @ x) / n; NaNs contribute 0 via x_filled
+    perm_means = flips @ x_filled  # shape (n_perms, n_cols)
+    perm_means /= np.where(n == 0, np.nan, n)  # broadcast divide; keep NaN where n==0
+
+    # Permuted t-stats share same denominator se
+    with np.errstate(invalid='ignore', divide='ignore'):
+        t_perm = perm_means / se  # shape (n_perms, n_cols)
+
+    # Max across columns for each permutation
+    t_maxes = np.nanmax(t_perm, axis=1)
+
+    # p-value as fraction of permuted maxima exceeding true max
+    p = (t_true_max < t_maxes).mean()
+
+    return p, float(t_true_max), t_maxes
 
 
 def sequenceness_crosscorr(probas, tf, tb=None, n_shuf=1000, min_lag=0, max_lag=50,

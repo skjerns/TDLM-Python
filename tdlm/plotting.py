@@ -174,8 +174,8 @@ def plot_tval_distribution(t_true, t_maxes, ax=None):
     axmin = bins[bin_index]
     axmax = bins[bin_index + 1] if (bin_index+1)<len(bins) else axmin*1.02
     p = (t_true>t_maxes).mean()
-    p05 = np.quantile(t_maxes, 0.05)
-    p001 = np.quantile(t_maxes, 0.001)
+    p05 = np.quantile(t_maxes, 0.95)
+    p001 = np.quantile(t_maxes, 0.999)
     ax.axvspan(axmin, axmax, color="red", alpha=0.5, label=f"observed\n{p=:.3f}")
 
     ax.vlines(p05, *ax.get_ylim(), label='p=0.05', color='black')
