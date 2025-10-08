@@ -100,5 +100,5 @@ Currently the repo is still quite bare, only providing basic functionality. I ha
 If you use this package, please cite as
 
 ```
-Simon Kern (2024). skjerns/TDLM-Python: v0.1 Minimally usable version (v0.1). Zenodo. https://doi.org/10.5281/zenodo.12623445
+Simon Kern, Yunzhe Liu, & Lennart Wittkuhn. (2025). skjerns/TDLM-Python: v0.4 implement signflip permutation test (v0.4). Zenodo. https://doi.org/10.5281/zenodo.14501157
 ```
