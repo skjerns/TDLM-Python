@@ -113,14 +113,16 @@ def signflit_test(sx, n_perms=1000, rng=None):
     """run signflip permutation test to check for significant sequenceness"""
     assert sx.ndim==2, 'sx must be 2D'
     t_maxes = []
-    t_true = ttest_1samp(sx, axis=0, popmean=0)[1].max()
+    t_true = ttest_1samp(sx, axis=0, popmean=0, nan_policy='omit')[1]
+    t_true_max = np.nanmax(t_true)
+
     for i in range(n_perms):
         bits = np.random.choice([-1, 1], size=(len(sx)))
         sx_perm = (sx.T*bits).T
         t_perm = ttest_1samp(sx_perm, axis=0, popmean=0)[1]
-        t_maxes += [np.max(t_perm)]
+        t_maxes += [np.nanmax(t_perm)]
     p = (t_true>t_maxes).mean()
-    return p, t_true, t_maxes
+    return p, t_true_max, t_maxes
 
 
 def sequenceness_crosscorr(probas, tf, tb=None, n_shuf=1000, min_lag=0, max_lag=50,
