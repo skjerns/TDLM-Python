@@ -115,8 +115,7 @@ def signflit_test(sx, n_perms=1000, rng=None):
         raise AssertionError('sx must be 2D')
 
     # Setup RNG
-    if rng is None:
-        rng = np.random.default_rng()
+    rng = np.random.default_rng(rng)
 
     # Precompute per-column n, mean, std (NaNs omitted)
     mask = ~np.isnan(sx)
