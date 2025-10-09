@@ -436,7 +436,8 @@ def simulate_eeg_localizer(n_samples, n_classes, noise=1.0, n_channels=64):
 
 
 def insert_events(data, insert_data, insert_labels, sequence, n_events,
-                  lag=7, jitter=0, n_steps=2,  distribution='constant', return_onsets=False):
+                  lag=7, jitter=0, n_steps=2,  distribution='constant',
+                  return_onsets=False, rng=None):
     """
     inject decodable events into M/EEG data according to a certain pattern.
 
@@ -467,7 +468,8 @@ def insert_events(data, insert_data, insert_labels, sequence, n_events,
         Can either be 'constant', 'increasing' or 'decreasing' or a p vector
         with probabilities for each sample point in data.
         The default is 'constant'.
-
+    rng : RandomState | int
+        random state or integer seed
     Raises
     ------
     ValueError
@@ -504,9 +506,7 @@ def insert_events(data, insert_data, insert_labels, sequence, n_events,
     data_sim = data.copy()
 
     # get reproducible seed
-    seed = int(''.join(([str(x) if x.isdigit() else str(ord(x)) for x in hash_array(data)])))
-    seed = seed % 2**32
-    np.random.seed(seed)
+    rng = np.random.default_rng(rng)
 
     # Define default parameters for replay generation
     # defaults = {'dist':7,
@@ -559,7 +559,7 @@ def insert_events(data, insert_data, insert_labels, sequence, n_events,
             raise ValueError(f"Not enough available indices to insert all events without overlap, {n_events=} too high")
 
         # Choose a random index from the available indices
-        start_idx = np.random.choice(all_idx, p=p)
+        start_idx = rng.choice(all_idx, p=p)
 
         # this is the calculated end index
         end_idx = start_idx + lag * n_steps + insert_data.shape[-1]
@@ -587,13 +587,13 @@ def insert_events(data, insert_data, insert_labels, sequence, n_events,
 
         # choose the starting class such that the n_steps can actually be taken
         # at that position to finish the sequence without looping to beginning
-        seq_i = np.random.choice(np.arange(len(sequence)-n_steps))
+        seq_i = rng.choice(np.arange(len(sequence)-n_steps))
         for step in range(n_steps+1):
             # choose which item should be inserted based on sequence order
             class_idx = sequence[seq_i]
             # or take a single event (more noisy)
             data_class = insert_data[insert_labels==class_idx]
-            idx_cls_i = np.random.choice(np.arange(len(data_class)))
+            idx_cls_i = rng.choice(np.arange(len(data_class)))
             insert_data_i = data_class[idx_cls_i]
             assert insert_data_i.ndim==2
 
@@ -611,7 +611,7 @@ def insert_events(data, insert_data, insert_labels, sequence, n_events,
             events['jitter'] += [smp_jitter]
 
             # increment pos to select position of next reactivation event
-            smp_jitter = np.random.randint(-jitter, jitter+1) if jitter else 0
+            smp_jitter = rng.integers(-jitter, jitter+1) if jitter else 0
             pos += lag + smp_jitter  # add next sequence step
             seq_i += 1  # increment sequence id for next step
 
