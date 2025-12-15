@@ -14,6 +14,7 @@ import warnings
 from numpy.linalg import pinv, eigh
 from scipy.signal import lfilter
 from itertools import permutations
+from numba import njit
 
 def hash_array(arr, dtype=np.int64, truncate=8):
     """
@@ -345,97 +346,361 @@ def seq2TF_2step(seq, n_states=None):
     return TF2
 
 
-def simulate_meeg(length, sfreq, n_channels=64, cov=None, autocorr=0.95):
+def simulate_meeg(length, sfreq, n_channels=64, cov=None, autocorr=0.95, rng=None):
     """
     Simulate M/EEG resting-state data.
 
-    Parameters:
-    - length: float
+    Parameters
+    ----------
+    length : float
         Total duration of the signal in seconds.
-    - sfreq: float
+    sfreq : float
         Sampling frequency in Hz (samples per second).
-    - n_channels: int, optional
+    n_channels : int, optional
         Number of EEG channels (default is 64).
-    - cov: numpy.ndarray, optional
+    cov : numpy.ndarray, optional
         Covariance matrix of shape (n_channels, n_channels).
-        If None, a random covariance matrix is generated
-    - autocorr: float, optional
-        temporal correlation of each sample with its neighbour samples in time.
+        If None, a random covariance matrix is generated.
+    autocorr : float, optional
+        Temporal correlation of each sample with its neighbour samples.
+    rng : numpy.random.Generator, optional
+        Random number generator.
 
-    this code is loosely based but optimized version of
-         https://github.com/YunzheLiu/TDLM/blob/master/Simulate_Replay.m
-
-    Returns:
-    - eeg_data: numpy.ndarray
+    Returns
+    -------
+    eeg_data : numpy.ndarray
         Simulated EEG data of shape (n_samples, n_channels).
     """
-    assert 0<=autocorr<1
+    assert 0 <= autocorr < 1
+    n_samples = int(length * sfreq)
+    rng = np.random.default_rng(rng)
 
-    n_samples = int(length * sfreq)  # Total number of samples
-
-    if str(type(cov))=="<class 'mne.cov.Covariance'>":
-        # extract cov from mne Covariance object
-        cov = cov.data
-
-    if cov is not None and n_channels is not None:
-        assert len(cov)==n_channels, \
-            'n_channels must be the same as covariance size'
-
-    # If covariance matrix is not provided, generate a random one
+    # 1. Setup Covariance (Cholesky Decomposition)
     if cov is None:
-        # Generate a random symmetric covariance matrix
-        A = np.random.randn(n_channels, n_channels)
-        symA = (A + A.T) / 2  # Symmetrize to make it symmetric
-        # Eigen decomposition to ensure positive semi-definite
-        eigenvalues, eigenvectors = np.linalg.eigh(symA)
-        # Adjust eigenvalues to be positive
-        eigenvalues = np.abs(eigenvalues) + 0.1
-        cov = eigenvectors @ np.diag(eigenvalues) @ eigenvectors.T
+        A = rng.normal(size=(n_channels, n_channels))
+        # Create symmetric positive-definite matrix
+        cov = (A + A.T) / 2
+        _, U = np.linalg.eig(cov)
+        # Reconstruct with positive eigenvalues
+        cov = U @ np.diag(np.abs(rng.normal(size=n_channels))) @ U.T
     else:
         n_channels = len(cov)
 
-    # Initialize the EEG data array
-    eeg_data = np.zeros((n_samples, n_channels))
+    # Compute Mixing Matrix (L) from Covariance
+    # We use Cholesky: Cov = L @ L.T
+    # If Cov is not strictly positive definite, use SVD as fallback (omitted for speed)
+    L = np.linalg.cholesky(cov)
 
-    # Generate initial sample
-    eeg_data[0, :] = np.random.multivariate_normal(np.zeros(n_channels), cov)
+    # 2. Generate White Noise (Standard Normal)
+    Z = rng.standard_normal((n_samples, n_channels))
 
-    # precompute noise by drawing a noise vector for each channel across time
-    noise = np.random.multivariate_normal(np.zeros(n_channels), cov,
-                                          size=n_samples)
+    # 3. Apply Temporal Filter to White Noise
+    # Original logic: noise was scaled by autocorr before addition
+    # Filter: y[n] = autocorr * y[n-1] + (autocorr * x[n])
+    # To match original magnitude logic: Scale input noise by autocorr
+    Z *= autocorr
 
-    b = [1.0]           # numerator
-    a = [1.0, -autocorr]  # denominator
+    # Correction for initial state to ensure X[0] ~ Standard Normal before mixing
+    # We want X[0] to be pure noise, not filtered.
+    # Current Z[0] is random. The filter will effectively do Z[0] = Z[0].
+    # So X[0] will be correct.
 
-    # Use scipy.signal.lfilter for each channel (C-accelerated time loop).
-    # Provide the initial sample as part of the filter's state so that x(1) = autocorr*x(0) + noise(1).
-    for ch in range(n_channels):
-        # "zi" is the filter state; we set it so that the very first sample equals eeg_data[0, ch].
-        # The shape of zi must be (max(len(a), len(b)) - 1) = 1 for AR(1).
-        channel_noise = noise[1:, ch]  # we skip noise(0) because x(0) is already set
+    # Apply Filter along time axis (axis 0)
+    # b=[1], a=[1, -autocorr]
+    # We use zi to handle initial conditions smoothly if needed,
+    # but strictly Z starts random, so standard filter is fine.
+    Z = lfilter([1], [1, -autocorr], Z, axis=0)
 
-        # The "zi" (initial filter state) must produce x(1) = autocorr*x(0) + e(1).
-        # With an AR(1), the length of zi = max(len(a), len(b)) - 1 = 1.
-        # When using lfilter([1], [1, -r], x, zi=[z]),
-        # the first output sample is y(0) = b[0]*x(0) + z = x(0) + z.
-        #
-        # We need y(0) = x(1) = autocorr*x(0) + noise(1).
-        # So z = autocorr*x(0).
-        zi = [autocorr * eeg_data[0, ch]]
+    # 4. Apply Spatial Mixing (Matrix Multiplication)
+    # X = Z_filtered @ L.T
+    # This moves the heavy O(N*M^2) operation to a single highly optimized BLAS call
+    X = Z @ L.T
 
-        # Apply filtering to get x(1..n_samples-1).
-        channel_out, _ = lfilter(b, a, channel_noise, zi=zi)
+    return X
 
-        # Store the result into [1..n_samples-1] for the channel
-        eeg_data[1:, ch] = channel_out
-    return eeg_data
+def simulate_classifier_patterns(n_patterns=10, n_channels=306, noise=4,
+                                 scale=1,  n_train_per_stim=18, rng=None):
+    """
+    Generates synthetic training data and labels matching MATLAB TDLM logic.
+
+    Parameters
+    ----------
+    n_patterns : int
+        Number of unique stimulus patterns.
+    n_channels : int
+        Number of sensor channels.
+    noise : float
+        Standard deviation of background noise.
+    n_train_per_stim : int
+        Repetitions per stimulus.
+    rng : int or np.random.Generator, optional
+        Random seed or generator.
+
+    Returns
+    -------
+    training_data : np.ndarray
+        Simulated sensor data.
+    training_labels : np.ndarray
+        Labels (0 for null, 1-N for stimuli).
+    patterns : np.ndarray
+        Ground truth patterns.
+    """
+    rng = np.random.default_rng(rng)
+
+    # Setup dimensions
+    n_null = n_train_per_stim * n_patterns
+    n_stim_total = n_patterns * n_train_per_stim
+    n_total = n_null + n_stim_total
+
+    # Generate Patterns
+    common_pattern = rng.normal(size=(1, n_channels))
+    patterns = np.tile(common_pattern, (n_patterns, 1)) + \
+               rng.standard_normal((n_patterns, n_channels))
+
+    # Construct Base Data
+    base_noise = noise * rng.standard_normal((n_total, n_channels))
+    stim_signal = np.tile(patterns, (n_train_per_stim, 1))
+
+    # Stack Null (zeros) on top of Stim (signal)
+    signal_component = np.vstack([
+        np.zeros((n_null, n_channels)),
+        stim_signal
+    ])
+
+    training_data = base_noise + signal_component
+
+    # Generate Labels
+    stim_labels = np.tile(np.arange(1, n_patterns + 1), n_train_per_stim)
+    training_labels = np.concatenate([
+        np.zeros(n_null, dtype=int),
+        stim_labels
+    ])
+
+    # Inject Extra Noise to half the patterns
+    n_noise_groups = n_patterns // 2
+
+    if n_noise_groups > 0:
+        more_noise_inds = rng.choice(np.arange(1, n_patterns + 1),
+                                     size=n_noise_groups,
+                                     replace=False)
+
+        for idx in more_noise_inds:
+            # MATLAB 1-based logic conversion: (Ind-1)*N + 1 : Ind*N
+            start_rel = (idx - 1) * n_train_per_stim
+            end_rel = idx * n_train_per_stim
+
+            s_idx = n_null + start_rel
+            e_idx = n_null + end_rel
+
+            segment_len = e_idx - s_idx
+            training_data[s_idx:e_idx, :] += rng.standard_normal((segment_len, n_channels))
+
+    return training_data*scale, training_labels, patterns*scale
 
 
-def simulate_eeg_localizer(n_samples, n_classes, noise=1.0, n_channels=64):
-    raise NotImplementedError()
+
+def insert_events(data, insert_data, insert_labels, n_events, lag=7, jitter=0,
+                  n_steps=2, refractory=15, distribution='constant',
+                  transitions=None, sequence=None, return_onsets=False, rng=None):
+    """
+    inject decodable events into M/EEG data according to a certain pattern.
 
 
-def insert_events(data, insert_data, insert_labels, sequence, n_events,
+    Parameters
+    ----------
+    data : TYPE
+        DESCRIPTION.
+    insert_data : np.ndarray
+        data that should be inserted. Length must be the same as insert_labels.
+        Must be 2D, with the second dimension being the sensor dimension.
+        If insert_data is 3D, last dimension is taken as a time dimension
+    insert_labels : np.ndarray
+        list of class labels/ids for the insert_data.
+    mean_class: bool
+        insert the mean of the class if True, else insert a random single event
+        from insert_data.
+    lag : TYPE, optional
+        Sample space distance individual reactivation events events.
+        The default is 7 (e.g. 70 ms replay speed time lag).
+    jitter : int, optional
+        By how many sample points to jitter the events (randomly).
+        The default is 0.
+    refractory: string or int
+        how many samples of blocking there should be before and after each
+        sequence start and sequence end. If set to None, disregard and allow
+        for overlapping sequences.
+    transitions: list of list
+        the sequence transitions that should be sampled from.
+        if it is a 1d list, transitions will be extracted automatically
+    n_steps : int, optional
+        Number of events to insert. The default is 2
+    distribution : str | np.ndarray, optional
+        How replay events should be distributed throughout the time series.
+        Can either be 'constant', 'increasing' or 'decreasing' or a p vector
+        with probabilities for each sample point in data.
+        The default is 'constant'.
+    rng : RandomState | int
+        random state or integer seed
+
+    Returns
+    -------
+    data : np.ndarray (shape=data.shape)
+        data with inserted events.
+    (optional) return_onsets: pd.DataFrame
+        table with onsets of events
+    """
+    if isinstance(insert_labels, list):
+        insert_labels = np.array(insert_labels)
+    if isinstance(insert_data, list):
+        insert_data = np.array(insert_data)
+    import logging
+    assert len(insert_data) == len(insert_labels), 'each data point must have a label'
+    assert insert_data.ndim in [2, 3]
+    assert insert_labels.ndim == 1
+    assert data.ndim==2
+    assert data.shape[1] == insert_data.shape[1]
+    assert min(insert_labels)==0, 'insert_labels must start at 0 and be consecutive'
+
+    if isinstance(distribution, np.ndarray):
+        assert len(distribution) == len(data)
+        assert distribution.ndim == 1
+        assert np.isclose(distribution.sum(), 1), 'Distribution must sum to 1, but {distribution.sum()=}'
+
+    # no events requested? simply return
+    if not n_events:
+        return (data, pd.DataFrame()) if return_onsets else data
+
+    assert sequence is None or transitions is None, 'either sequence or transitions must be supplied'
+
+    if sequence is not None:
+        transitions = [sequence[i:i+n_steps+1]for i, _ in enumerate(sequence[:-n_steps])]
+        assert len(transitions) == len(sequence)-1, 'sanity check failed'
+
+    transitions = np.squeeze(transitions)
+
+    assert transitions.shape[1]==n_steps+1, \
+        f'each transition must have exactly {n_steps}+1 steps'
+
+    del sequence # for safety, can be removed later
+
+    # convert data to 3d
+    if insert_data.ndim==2:
+        insert_data = insert_data.reshape([*insert_data.shape, 1])
+
+    # work on copy of array to prevent mutable changes
+    data_sim = data.copy()
+
+    # get reproducible seed
+    rng = np.random.default_rng(rng)
+
+    # Calculate probability distribution based on the specified distribution type
+    if isinstance(distribution, str):
+        if distribution=='constant':
+            p = np.ones(len(data))
+            p = p/p.sum()
+        elif distribution=='decreasing':
+            p = np.linspace(1, 0, len(data))**2
+            p = p/p.sum()
+        elif distribution=='increasing':
+            p = np.linspace(0, 1, len(data))**2
+            p = p/p.sum()
+        else:
+            raise ValueError(f'unknown {distribution=}')
+    elif isinstance(distribution, (list, np.ndarray)):
+        distribution = np.array(distribution)
+        assert len(distribution)==len(data), f'{distribution.shape=} != {len(data)=}'
+        assert np.isclose(distribution.sum(), 1), f'{distribution.sum()=} must be sum=1'
+        p = distribution
+    else:
+        raise ValueError(f'distribution must be string or p-vector, {distribution=}')
+
+    # block impossible starting points (i.e. out of bounds)
+    tspan = insert_data.shape[-1] # timespan of one patter
+    event_length = n_steps*lag + tspan -1  # time span of one replay events
+    p[-event_length:] = 0  # dont start events at end of resting state
+    p[:tspan] = 0  # block beginning of resting state
+    p = p/p.sum()  # normalize probability vector again after removing indices
+
+    replay_start_idxs = []
+    all_idx = np.arange(len(data))
+
+    # iteratively select starting index for replay event
+    # such that replay events are not overlapping
+    for i in range(n_events):
+
+        # Choose a random idx from the available indices to start replay event
+        start_idx = rng.choice(all_idx, p=p)
+        replay_start_idxs.append(start_idx)
+
+        # next block the refractory period to prevent overlap
+        block_start = start_idx - refractory - lag*n_steps
+        block_end = start_idx + refractory
+
+        block_start = max(block_start, 0)
+        block_end = min(block_end, len(p))
+
+        # Update the p array to zero out the region around the chosen index to prevent overlap
+        if refractory is not None:
+            p[block_start: block_end] = 0
+
+        # check that we actually still have enough positions to insert
+        # another event of length lag*n_steps. Probably the function fails
+        # beforehand though.
+        if (p>0).sum() < n_steps*lag:
+            raise ValueError(f'no more positions to insert events! {n_events=} too high?')
+
+        # normalize to create valid probability distribution
+        p = p/p.sum()
+
+
+    # save data about inserted events here and return if requested
+    events = {'event_idx': [],
+              'pos': [],
+              'step': [],
+              'class_idx': [],
+              'span': [],
+              'jitter': []}
+
+    for idx,  start_idx in enumerate(replay_start_idxs):
+        smp_jitter = 0  # starting with no jitter
+        pos = start_idx  # pos indicates where in data we insert the next event
+
+        # randomly sample a transition that we would take
+        trans = rng.choice(transitions)
+
+        for step, class_idx  in enumerate(trans):
+            # choose which item should be inserted based on sequence order
+            # or take a single event (more noisy)
+            data_class = insert_data[insert_labels==class_idx]
+            idx_cls_i = rng.choice(np.arange(len(data_class)))
+            insert_data_i = data_class[idx_cls_i]
+            assert insert_data_i.ndim==2
+
+            # time spans of the segments we want to insert
+            t_start = pos - tspan // 2
+            t_end = t_start + tspan
+            data_sim[t_start:t_end, :] += insert_data_i.T
+            logging.debug(f'{start_idx=} {pos=} {class_idx=}')
+
+            events['event_idx'] += [idx]
+            events['pos'] += [pos]
+            events['step'] += [step]
+            events['class_idx'] += [class_idx]
+            events['span'] += [insert_data_i.shape[-1]]
+            events['jitter'] += [smp_jitter]
+
+            # increment pos to select position of next reactivation event
+            smp_jitter = rng.integers(-jitter, jitter+1) if jitter else 0
+            pos += lag + smp_jitter  # add next sequence step
+
+    if return_onsets:
+        df_onsets = pd.DataFrame(events)
+        df_onsets['n_events'] = n_events
+        return (data_sim, df_onsets)
+
+    return data_sim
+
+def insert_events_orig(data, insert_data, insert_labels, sequence, n_events,
                   lag=7, jitter=0, n_steps=2,  distribution='constant',
                   return_onsets=False, rng=None):
     """
@@ -621,8 +886,6 @@ def insert_events(data, insert_data, insert_labels, sequence, n_events,
 
     return data_sim
 
-
-
 def create_travelling_wave(hz, seconds, sfreq, chs_pos, source_idx=0, speed=50):
     """
     Create a sinus wave of shape (size, len(sensor_pos)), where each
@@ -681,8 +944,10 @@ def create_travelling_wave(hz, seconds, sfreq, chs_pos, source_idx=0, speed=50):
     return wave
 
 
-# if __name__=='__main__':
-#     np.random.seed(0)
-#     x1 = simulate_meeg(60,100)
-#     np.random.seed(0)
-#     x2 = simulate_meeg_opt(60,100)
+if __name__=='__main__':
+    import seaborn as sns
+    import stimer
+    with stimer:
+        x1 = simulate_meeg(600, 100, 306, rng=0)
+    with stimer:
+        x2 = simulate_meeg_fast(600, 100, 306, rng=0)

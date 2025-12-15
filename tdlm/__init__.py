@@ -10,3 +10,4 @@ from .plotting import plot_sequenceness, plot_permutation_distribution
 from .plotting import plot_tval_distribution
 from . import plotting
 from . import utils
+from .utils import seq2tf, tf2seq
