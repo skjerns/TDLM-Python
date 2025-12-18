@@ -434,7 +434,7 @@ def simulate_classifier_patterns(n_patterns=10, n_channels=306, noise=4,
     n_train_per_stim : int
         Repetitions per stimulus.
     rng : int or np.random.Generator, optional
-        Random seed or generator.
+        Random int seed or generator.
 
     Returns
     -------
@@ -499,8 +499,8 @@ def simulate_classifier_patterns(n_patterns=10, n_channels=306, noise=4,
 
 
 
-def insert_events(data, insert_data, insert_labels, n_events, lag=7, jitter=0,
-                  n_steps=2, refractory=15, distribution='constant',
+def insert_events(data, insert_data, insert_labels, n_events, lag=8, jitter=0,
+                  n_steps=1, refractory=16, distribution='constant',
                   transitions=None, sequence=None, return_onsets=False, rng=None):
     """
     inject decodable events into M/EEG data according to a certain pattern.
@@ -525,10 +525,11 @@ def insert_events(data, insert_data, insert_labels, n_events, lag=7, jitter=0,
     jitter : int, optional
         By how many sample points to jitter the events (randomly).
         The default is 0.
-    refractory: string or int
+    refractory: int | list of two int
         how many samples of blocking there should be before and after each
-        sequence start and sequence end. If set to None, disregard and allow
-        for overlapping sequences.
+        sequence start and sequence end. If integer, apply same to both sides.
+        If list of two ints, interpret as left and right blocking period.
+        If set to None, disregard and allow overlapping sequences.
     transitions: list of list
         the sequence transitions that should be sampled from.
         if it is a 1d list, transitions will be extracted automatically
@@ -539,8 +540,8 @@ def insert_events(data, insert_data, insert_labels, n_events, lag=7, jitter=0,
         Can either be 'constant', 'increasing' or 'decreasing' or a p vector
         with probabilities for each sample point in data.
         The default is 'constant'.
-    rng : RandomState | int
-        random state or integer seed
+    rng : np.random.Generator | int
+        random generator or integer seed
 
     Returns
     -------
@@ -566,15 +567,19 @@ def insert_events(data, insert_data, insert_labels, n_events, lag=7, jitter=0,
         assert distribution.ndim == 1
         assert np.isclose(distribution.sum(), 1), 'Distribution must sum to 1, but {distribution.sum()=}'
 
+    assert sequence is None or transitions is None, 'either sequence or transitions must be supplied'
+
     # no events requested? simply return
     if not n_events:
         return (data, pd.DataFrame()) if return_onsets else data
 
-    assert sequence is None or transitions is None, 'either sequence or transitions must be supplied'
+    # assume refractory period is valid for both sides
+    if isinstance(refractory, int):
+        refractory = [refractory, refractory]
 
     if sequence is not None:
         transitions = [sequence[i:i+n_steps+1]for i, _ in enumerate(sequence[:-n_steps])]
-        assert len(transitions) == len(sequence)-1, 'sanity check failed'
+        assert len(transitions) == len(sequence)-n_steps, 'sanity check failed'
 
     transitions = np.squeeze(transitions)
 
@@ -632,16 +637,21 @@ def insert_events(data, insert_data, insert_labels, n_events, lag=7, jitter=0,
         start_idx = rng.choice(all_idx, p=p)
         replay_start_idxs.append(start_idx)
 
-        # next block the refractory period to prevent overlap
-        block_start = start_idx - refractory - lag*n_steps
-        block_end = start_idx + refractory
 
-        block_start = max(block_start, 0)
-        block_end = min(block_end, len(p))
 
         # Update the p array to zero out the region around the chosen index to prevent overlap
         if refractory is not None:
+            # next block the refractory period to prevent overlap
+            block_start = start_idx - refractory[0]
+            block_end   = start_idx + refractory[1] + 1
+
+            block_start = max(block_start, 0)
+            block_end = min(block_end, len(p))
+
             p[block_start: block_end] = 0
+
+            # normalize to create valid probability distribution
+            p = p/p.sum()
 
         # check that we actually still have enough positions to insert
         # another event of length lag*n_steps. Probably the function fails
@@ -649,8 +659,6 @@ def insert_events(data, insert_data, insert_labels, n_events, lag=7, jitter=0,
         if (p>0).sum() < n_steps*lag:
             raise ValueError(f'no more positions to insert events! {n_events=} too high?')
 
-        # normalize to create valid probability distribution
-        p = p/p.sum()
 
 
     # save data about inserted events here and return if requested
@@ -700,191 +708,6 @@ def insert_events(data, insert_data, insert_labels, n_events, lag=7, jitter=0,
 
     return data_sim
 
-def insert_events_orig(data, insert_data, insert_labels, sequence, n_events,
-                  lag=7, jitter=0, n_steps=2,  distribution='constant',
-                  return_onsets=False, rng=None):
-    """
-    inject decodable events into M/EEG data according to a certain pattern.
-
-
-    Parameters
-    ----------
-    data : TYPE
-        DESCRIPTION.
-    insert_data : np.ndarray
-        data that should be inserted. Length must be the same as insert_labels.
-        Must be 2D, with the second dimension being the sensor dimension.
-        If insert_data is 3D, last dimension is taken as a time dimension
-    insert_labels : np.ndarray
-        list of class labels/ids for the insert_data.
-    mean_class: bool
-        insert the mean of the class if True, else insert a random single event
-        from insert_data.
-    lag : TYPE, optional
-        Sample space distance individual reactivation events events.
-        The default is 7 (e.g. 70 ms replay speed time lag).
-    jitter : int, optional
-        By how many sample points to jitter the events (randomly).
-        The default is 0.
-    n_steps : int, optional
-        Number of events to insert. The default is 2
-    distribution : str | np.ndarray, optional
-        How replay events should be distributed throughout the time series.
-        Can either be 'constant', 'increasing' or 'decreasing' or a p vector
-        with probabilities for each sample point in data.
-        The default is 'constant'.
-    rng : RandomState | int
-        random state or integer seed
-    Raises
-    ------
-    ValueError
-        DESCRIPTION.
-    Exception
-        DESCRIPTION.
-
-    Returns
-    -------
-    data : np.ndarray (shape=data.shape)
-        data with inserted events.
-    """
-    if isinstance(insert_labels, list):
-        insert_labels = np.array(insert_labels)
-    if isinstance(insert_data, list):
-        insert_data = np.array(insert_data)
-    import logging
-    assert len(insert_data) == len(insert_labels), 'each data point must have a label'
-    assert insert_data.ndim in [2, 3]
-    assert insert_labels.ndim == 1
-    assert data.ndim==2
-    assert data.shape[1] == insert_data.shape[1]
-
-    if isinstance(distribution, np.ndarray):
-        assert len(distribution) == len(data)
-        assert distribution.ndim == 1
-        assert np.isclose(distribution.sum(), 1), 'Distribution must sum to 1, but {distribution.sum()=}'
-
-    # convert data to 3d
-    if insert_data.ndim==2:
-        insert_data = insert_data.reshape([*insert_data.shape, 1])
-
-    # work on copy of array to prevent mutable changes
-    data_sim = data.copy()
-
-    # get reproducible seed
-    rng = np.random.default_rng(rng)
-
-    # Define default parameters for replay generation
-    # defaults = {'dist':7,
-    #             'n_events':250,
-    #             'tp':31,
-    #             'seqlen':3,
-    #             'direction':'fwd',
-    #             'distribution':'constant',
-    #             'trange': 0}
-
-    # Calculate probability distribution based on the specified distribution type
-    if isinstance(distribution, str):
-        if distribution=='constant':
-            p = np.ones(len(data))
-            p = p/p.sum()
-        elif distribution=='decreasing':
-            p = np.linspace(1, 0, len(data))**2
-            p = p/p.sum()
-        elif distribution=='increasing':
-            p = np.linspace(0, 1, len(data))**2
-            p = p/p.sum()
-        else:
-            raise ValueError(f'unknown {distribution=}')
-    elif isinstance(distribution, (list, np.ndarray)):
-        distribution = np.array(distribution)
-        assert len(distribution)==len(data), f'{distribution.shape=} != {len(data)=}'
-        assert np.isclose(distribution.sum(), 1), f'{distribution.sum()=} must be sum=1'
-        p = distribution
-    else:
-        raise ValueError(f'distribution must be string or p-vector, {distribution=}')
-
-    # Calculate length of the replay sequence
-    padding = n_steps*lag + data.shape[-1]
-    p[-padding:] = 0  # can't insert events starting here, would be too long
-    p = p/p.sum()
-
-    replay_start_idxs = []
-    all_idx = np.arange(len(data))
-
-    # iteratively select starting index for replay event
-    # such that replay events are not overlapping
-    for i in range(n_events):
-        # next set all indices of p to zero where events will be inserted
-        # this way we can prevent overlap of replay event trains
-        # Find available indices where events can be inserted
-        available_indices = np.where(p > 0)[0]
-
-        # Ensure that there are enough available indices to choose from
-        if len(available_indices) < n_events - i:
-            raise ValueError(f"Not enough available indices to insert all events without overlap, {n_events=} too high")
-
-        # Choose a random index from the available indices
-        start_idx = rng.choice(all_idx, p=p)
-
-        # this is the calculated end index
-        end_idx = start_idx + lag * n_steps + insert_data.shape[-1]
-        assert end_idx<len(p)
-        # Update the p array to zero out the region around the chosen index to prevent overlap
-        p[start_idx:end_idx] = 0
-
-        # normalize to create valid probability distribution
-        p = p/p.sum()
-
-        # Append the chosen index to the list of starting indices
-        replay_start_idxs.append(start_idx)
-
-    # save data about inserted events here and return if requested
-    events = {'idx': [],
-              'pos': [],
-              'step': [],
-              'class_idx': [],
-              'span': [],
-              'jitter': []}
-
-    for idx,  start_idx in enumerate(replay_start_idxs):
-        smp_jitter = 0  # starting with no jitter
-        pos = start_idx  # pos indicates where in data we insert the next event
-
-        # choose the starting class such that the n_steps can actually be taken
-        # at that position to finish the sequence without looping to beginning
-        seq_i = rng.choice(np.arange(len(sequence)-n_steps))
-        for step in range(n_steps+1):
-            # choose which item should be inserted based on sequence order
-            class_idx = sequence[seq_i]
-            # or take a single event (more noisy)
-            data_class = insert_data[insert_labels==class_idx]
-            idx_cls_i = rng.choice(np.arange(len(data_class)))
-            insert_data_i = data_class[idx_cls_i]
-            assert insert_data_i.ndim==2
-
-            # time spans of the segments we want to insert
-            t = insert_data_i.shape[-1]
-
-            data_sim[pos-t//2:pos+1+t//2, :] += insert_data_i.T
-            logging.debug(f'{start_idx=} {pos=} {class_idx=}')
-
-            events['idx'] += [idx]
-            events['pos'] += [pos]
-            events['step'] += [step]
-            events['class_idx'] += [class_idx]
-            events['span'] += [insert_data_i.shape[-1]]
-            events['jitter'] += [smp_jitter]
-
-            # increment pos to select position of next reactivation event
-            smp_jitter = rng.integers(-jitter, jitter+1) if jitter else 0
-            pos += lag + smp_jitter  # add next sequence step
-            seq_i += 1  # increment sequence id for next step
-
-    if return_onsets:
-        df_onsets = pd.DataFrame(events)
-        return (data_sim, df_onsets)
-
-    return data_sim
 
 def create_travelling_wave(hz, seconds, sfreq, chs_pos, source_idx=0, speed=50):
     """

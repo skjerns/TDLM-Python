@@ -9,6 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.ticker import (MultipleLocator, AutoMinorLocator)
 from tdlm.core import signflit_test
+from cycler import cycler
 
 
 def plot_sequenceness(seq_fwd, seq_bkw, sfreq=100, ax=None, title=None,
@@ -77,6 +78,12 @@ def plot_sequenceness(seq_fwd, seq_bkw, sfreq=100, ax=None, title=None,
         DESCRIPTION.
 
     """
+    if isinstance(which, str):
+        which = [which]
+    for kw in which:
+        if not kw in ['bkw', 'fwd', 'fwd-bkw']:
+            raise ValueError(f"{kw} was given in 'which', must be of 'bkw', 'fwd', 'fwd-bkw'")
+
 
     def shadedErrorBar(x, y, err, ax=None, **kwargs):
         ax.plot(x, y, **kwargs)
@@ -169,26 +176,59 @@ def plot_sequenceness(seq_fwd, seq_bkw, sfreq=100, ax=None, title=None,
     return ax
 
 
-def plot_tval_distribution(t_true, t_maxes, bins=100,
-                           title='tvalue distribution', ax=None):
+def plot_tval_distribution(t_obs, t_perms, bins=100, color=None,
+                           thresholds=(0.95, 0.99), title='tvalue distribution',
+                           ax=None):
+    """
+    Plot a histogram of a permutation-based t-value distribution and mark the observed statistic
+    with significance thresholds.
+
+    Parameters
+    ----------
+    t_obs : float
+        Observed t-value to be highlighted on the distribution.
+    t_perm : array-like
+        Permutation-derived t-values forming the null distribution.
+    bins : int, optional
+        Number of histogram bins.
+    color : str or None, optional
+        Color for the histogram bars.
+    title : str, optional
+        Title of the plot.
+    ax : matplotlib.axes.Axes or None, optional
+        Axes object to draw on. If None, a new figure and axes are created.
+
+    Returns
+    -------
+    ax : matplotlib.axes.Axes
+        Axes containing the plot.
+    """
     if ax is None:
         fig, ax = plt.subplots(1, 1)
-    ax = sns.histplot(t_maxes, bins=bins, ax=ax, stat="percent")
+
+    if isinstance(thresholds, (float)):
+        thresholds = [thresholds]
+
+    ax = sns.histplot(t_perms, bins=bins, ax=ax, stat="percent", color=color)
 
     # Highlight the bin with red color
-    p = (t_true<t_maxes).mean()
-    p05 = np.quantile(t_maxes, 0.95)
-    p001 = np.quantile(t_maxes, 0.999)
+    p = (t_obs<t_perms).mean()
     ylims = ax.get_ylim()
-    ax.vlines(t_true, *ylims, label=f"observed\n{p=:.5f}", color='red')
-    ax.vlines(p05, *ylims, label='p=0.05', linestyle='--', color='black')
-    ax.vlines(p001, *ylims, label='p=0.001', linestyle=':', color='black')
+    ax.vlines(t_obs, *ylims, label=f"observed\n{p=:.5f}".rstrip('0'),
+              color='red')
+
+    linestyle = cycler('linestyle', ["--",":", "-."])()
+    for i, thresh in enumerate(thresholds):
+        p_thresh = np.quantile(t_perms, thresh)
+        ax.vlines(p_thresh, *ylims, label=f'p={np.round(1-thresh, 8)}',
+                  color='black', **next(linestyle))
+
     # Add labels and title
     ax.set_title(title)
     ax.set_xlabel("tvalue distribution")
     ax.set_ylabel("Percentage")
-    # ax.text(ax.get_xlim()[1]*0.97, ax.get_ylim()[1]*0.95, f'{p=:.3f}', horizontalalignment='right')
     ax.legend( fontsize=12, loc="upper left")
+    return ax
 
 def plot_permutation_distribution(sx, ax=None, title=None, **kwargs):
     """plots the means of a TDLM permutation results.
