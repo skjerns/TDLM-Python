@@ -106,7 +106,7 @@ def _cross_correlation(probas, tf, tb, max_lag=40, min_lag=0):
     return ff, fb
 
 
-def signflit_test(sx, n_perms=1000, rng=None):
+def signflit_test(sx, n_perms=10000, rng=None):
     """
     One-sided max-t sign-flip permutation test across columns.
 
@@ -183,6 +183,86 @@ def signflit_test(sx, n_perms=1000, rng=None):
     return result(pvalue, t_obs, t_perms)
 
 
+def signflit_test(sx, n_perms=10000, rng=None):
+    """
+    One-sided max-t sign-flip permutation test across columns.
+
+
+    For each permutation, flip a random subset observations by -1 (i.e.
+    participant's sequenceness score for each time lag). Then, run a ttest for
+    all time lags separately and note the maximum t-value this permutation.
+    As a result, we have a distribution of t-values, which we compare against
+    the ground truth base t-value of the original data. This accounts for the
+    multiple comparision problem but measures random effects instead of
+    fixed effects, making the test more robust than the previously used state-
+    shuffling. Use tdlm.plot_tval_distribution(..) to plot the results
+
+    Parameters
+    ----------
+    sx : ndarray
+        Data matrix of shape (n_obs, n_cols). This will usually be your
+        sequenceness results in form of (n_subjects, n_time_lags).
+        All nan columns will be ignored (e.g. for the zero-th time lag)
+    n_perms : int
+        Number of sign-flip permutations.
+    rng : int or numpy.random.Generator, optional
+        Seed or Generator for reproducibility.
+
+    Returns
+    -------
+    SignflipResult : namedtuple
+        pvalue : float
+            Finite-sample corrected familywise p-value.
+        t_obs : float
+            Observed max t-statistic across columns.
+        t_perms : ndarray
+            Max t-statistic per permutation of shape (n_perms,).
+    """
+    if sx.ndim != 2:
+        raise ValueError(f'sx must be 2D (n_subj, n_lags) but is {sx.shape=}, e.g. without permutations')
+    rng = np.random.default_rng(rng)
+
+    # remove the all-nan position of the beginning
+    if np.isnan(sx[:, 0]).all():
+        sx = sx[:, 1:]
+
+    # calculate mean sequenceness
+    mean_seq = np.mean(sx, axis=0)
+    n = sx.shape[0]  # number of observations
+    assert n>1, f'for signflip test n>1 is required, but {n=}, i.e. {sx.shape=}'
+
+    # Columnwise SE (ddof=1). NaNs if n<2 propagate as intended.
+    # with np.errstate(invalid='ignore', divide='ignore'):
+    s = np.std(sx, axis=0, ddof=1)
+    se = s / np.sqrt(n)
+
+    # True column t-stats and max (one-sided, positive direction)
+    # with np.errstate(invalid='ignore', divide='ignore'):
+    t_cols = mean_seq / se
+
+    t_obs = np.nanmax(t_cols)
+
+    # Vectorized sign flips: (B, n_obs) in {-1, +1}
+    n_obs = sx.shape[0]
+    flips = rng.integers(0, 2, size=(n_perms, n_obs), dtype=np.int8) * 2 - 1
+
+    # Permutation means per column; NaN when n==0
+    perm_sums = flips @ sx  # (B, n_cols)
+    perm_means = perm_sums / n  # broadcast
+
+    # Permutation "t" using fixed SE from original data
+    # with np.errstate(invalid='ignore', divide='ignore'):
+    t_perm = perm_means / se  # (B, n_cols)
+
+    # Max across columns per permutation (one-sided)
+    t_perms = np.max(t_perm, axis=1)
+
+    # p value = number of samples above threshold, finite sample corrected
+    ge = np.count_nonzero(t_perms >= t_obs)
+    pvalue = (ge + 1) / (n_perms + 1)
+
+    result = namedtuple('SignflipResult', ['pvalue', 't_obs', 't_perms'])
+    return result(pvalue, t_obs, t_perms)
 
 def sequenceness_crosscorr(probas, tf, tb=None, n_shuf=1000, min_lag=0, max_lag=50,
                            alpha_freq=None):
