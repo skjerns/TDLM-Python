@@ -10,8 +10,7 @@ Created on Wed Dec 24 10:14:58 2025
 import os
 import unittest
 import numpy as np
-from tdlm.utils import create_travelling_wave
-from tdlm.utils import simulate_meeg
+from tdlm.simulation import create_travelling_wave, simulate_meeg
 
 
 class TestUtils(unittest.TestCase):
