@@ -14,9 +14,9 @@ from cycler import cycler
 
 def plot_sequenceness(seq_fwd, seq_bkw, sfreq=100, ax=None, title=None,
                       color=None, which=['fwd-bkw', 'fwd', 'bkw'], clear=True,
-                      plotsignflip=False, plotmax=True, plot95=False,
-                      min_lag=0, max_lag=None, rescale=True, despine=True,
-                      **kwargs):
+                      plotsignflip=False, plotmax=True, plot95=True,
+                      label=None,  min_lag=0, max_lag=None, rescale=True,
+                      despine=True,  **kwargs):
     """Plot forward, backward and differential sequenceness with conf. interv.
 
     Given forward and backwards sequenceness permutation result matrices, plot
@@ -44,6 +44,8 @@ def plot_sequenceness(seq_fwd, seq_bkw, sfreq=100, ax=None, title=None,
         The default is ['fwd-bkw', 'fwd', 'bkw'].
     clear : bool, optional
         Whether to clear the axis before plotting. The default is True.
+    label: str, optional
+        label for the figure legend. If None, will default to the direction.
     min_lag: int, optional
         Minimum time lag that has been analysed. The default is 0, which
         corresponds to the first entry of the sequenceness array specifying
@@ -129,7 +131,6 @@ def plot_sequenceness(seq_fwd, seq_bkw, sfreq=100, ax=None, title=None,
         if direction not in which:
             continue
         sx = sxs[i]
-        print(direction)
         c = palette[i] if color is None else color
         perm_maxes = np.max(abs(np.mean(sx[:,1:,1:], 0)), -1)
         thresh_max = max(perm_maxes);
@@ -137,7 +138,8 @@ def plot_sequenceness(seq_fwd, seq_bkw, sfreq=100, ax=None, title=None,
         div = thresh_max if rescale else 1
 
         dtp = (sx[:,0,:])/div;
-        shadedErrorBar(times, dtp.mean(0), np.std(dtp, 0)/np.sqrt(len(sx)), ax=ax, color=c, label=direction)
+        shadedErrorBar(times, dtp.mean(0), np.std(dtp, 0)/np.sqrt(len(sx)),
+                       ax=ax, color=c, label=direction if label is None else label)
 
         if plotmax:
             thresh_max = 1 if rescale else thresh_max
@@ -227,7 +229,7 @@ def plot_tval_distribution(t_obs, t_perms, bins=100, color=None,
     ax.set_title(title)
     ax.set_xlabel("tvalue distribution")
     ax.set_ylabel("Percentage")
-    ax.legend( fontsize=12, loc="upper left")
+    ax.legend(fontsize=12, loc="upper right")
     return ax
 
 def plot_permutation_distribution(sx, ax=None, title=None, **kwargs):
