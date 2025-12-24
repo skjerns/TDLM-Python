@@ -24,12 +24,12 @@ class TestPlotting(unittest.TestCase):
         # dummy curve, should be below threshold
         seq_fwd = (np.arange(30*3) + 5).reshape([1, 3, 30]).astype(float)
         seq_fwd[:, :, 0] = np.nan
-        plotting.plot_sequenceness(seq_fwd, None, which = ['fwd'])
+        plotting.plot_sequenceness(seq_fwd, seq_fwd, which = ['fwd'])
 
         # dummy curve, should be above threshold
         seq_fwd = (np.arange(30*3) + 5)[::-1].reshape([1, 3, 30]).astype(float)
         seq_fwd[:, :, 0] = np.nan
-        plotting.plot_sequenceness(seq_fwd, None, which = ['fwd'])
+        plotting.plot_sequenceness(seq_fwd, seq_fwd, which = ['fwd'])
 
 if __name__=='__main__':
     unittest.main()
