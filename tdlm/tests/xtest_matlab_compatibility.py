@@ -5,7 +5,7 @@ Created on Thu Apr 18 15:24:08 2024
 test if MATLAB original code gives same results as current implementation
 
 TEST IS DISABLED:
-MATLAB enginge for Python does not run on GitHub Actions yet.
+MATLAB engine for Python does not run on GitHub Actions yet.
 
 @author: simon.kern
 """

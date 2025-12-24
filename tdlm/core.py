@@ -116,7 +116,7 @@ def signflit_test(sx, n_perms=10000, rng=None):
     all time lags separately and note the maximum t-value this permutation.
     As a result, we have a distribution of t-values, which we compare against
     the ground truth base t-value of the original data. This accounts for the
-    multiple comparision problem but measures random effects instead of
+    multiple comparison problem but measures random effects instead of
     fixed effects, making the test more robust than the previously used state-
     shuffling. Use tdlm.plot_tval_distribution(..) to plot the results
 
@@ -193,7 +193,7 @@ def signflit_test(sx, n_perms=10000, rng=None):
     all time lags separately and note the maximum t-value this permutation.
     As a result, we have a distribution of t-values, which we compare against
     the ground truth base t-value of the original data. This accounts for the
-    multiple comparision problem but measures random effects instead of
+    multiple comparison problem but measures random effects instead of
     fixed effects, making the test more robust than the previously used state-
     shuffling. Use tdlm.plot_tval_distribution(..) to plot the results
 
@@ -334,10 +334,10 @@ def compute_1step(probas, tf, tb=None, n_shuf=100, min_lag=0, max_lag=50,
     Returns
     -------
     sf : np.ndarray
-        forward sequencess for all time lags and shuffles. Row 0 is the
+        forward sequences for all time lags and shuffles. Row 0 is the
         non-shuffled version. First lag is NAN as it is undefined for lag = 0
     sb : np.ndarray
-        backward sequencess for all time lags and shuffles. Row 0 is the
+        backward sequences for all time lags and shuffles. Row 0 is the
         non-shuffled version. First lag is NAN as it is undefined for lag = 0
     """
     # implicit conversion off probability lists to arrays

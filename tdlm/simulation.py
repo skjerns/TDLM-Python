@@ -293,7 +293,7 @@ def insert_events(data, insert_data, insert_labels, n_events, lag=8, jitter=0,
         raise ValueError(f'distribution must be string or p-vector, {distribution=}')
 
     # block impossible starting points (i.e. out of bounds)
-    tspan = insert_data.shape[-1] # timespan of one patter
+    tspan = insert_data.shape[-1] # timespan of one pattern
     event_length = n_steps*lag + tspan -1  # time span of one replay events
     p[-event_length:] = 0  # dont start events at end of resting state
     p[:tspan] = 0  # block beginning of resting state
