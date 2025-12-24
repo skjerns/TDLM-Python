@@ -57,7 +57,6 @@ def _find_betas(probas: np.ndarray, n_states: int, max_lag: int, alpha_freq=None
         # add control for certain time lags to reduce alpha
         # Now find coefficients that solve the linear regression for this timelag
         # this a the second stage regression
-        # print(ilag_X.shape)
         ilag_betas = pinv(ilag_X) @ probas;  # if SVD fails, use slow, exact solution
         betas[ilag_idx, :] = ilag_betas[0:-1, :];
 
@@ -384,7 +383,6 @@ def compute_1step(probas, tf, tb=None, n_shuf=100, min_lag=0, max_lag=50,
 
         # create our design matrix for the second step analysis
         dm = np.vstack([squash(tf_perm), squash(tb_perm), squash(t_auto), squash(t_const)]).T
-        # print(dm.shape)
         # now calculate regression coefs for use with transition matrix
         bbb = pinv(dm) @ (betasn_ilag_stage.T)  #%squash(ones(n_states))
 
