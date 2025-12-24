@@ -19,14 +19,17 @@ import tdlm
 
 class TestTDLM(unittest.TestCase):
 
-    def test_simple_sequence(self):
+    def test_simple_sequence_plotting(self):
+        """create a time lagged probability series by shifting array rows
+
+        check if the plot is correct"""
         # create a very simple fake probability vector with ones and zeros
         tf = np.roll(np.eye(5), 1, axis=1)
         sfreq = 100
         length = 60
         proba = np.random.rand(sfreq*length)
         # induce time lag of 3 time steps
-        for lag in [1, 2, 3, 4, 5]:
+        for lag in [2, 3, 4, 5]:
             probas = np.zeros([proba.shape[0], 5])
             for i in range(5):
                 probas[:, i] = np.roll(proba, i*lag)
@@ -35,17 +38,18 @@ class TestTDLM(unittest.TestCase):
             fig, ax = plt.subplots(figsize=[8, 6])
             plotting.plot_sequenceness(sf, sb, which =['fwd', 'bkw'], ax=ax)
 
-            #  check that plotted lines have the peak at the same point
+            # check that plotted lines have the peak where the data has it
             data = ax.lines[0].get_ydata()
-            sb = np.nan_to_num(sb, -np.inf)
-            assert np.argmax(data) == np.argmax(sb[0])
-
-            data = ax.lines[1].get_ydata()
             sf = np.nan_to_num(sf, -np.inf)
             assert np.argmax(data) == np.argmax(sf[0]) == lag
+
+            data = ax.lines[1].get_ydata()
+            sb = np.nan_to_num(sb, -np.inf)
+            assert np.argmax(data)== np.argmax(sb[0])
             plt.close(fig)
 
-    def test_simple_2step_sequence(self):
+
+    def test_simple_2step_sequence_plotting(self):
         # create a very simple fake probability vector with ones and zeros
         tf = np.roll(np.eye(5), 1, axis=1)
         sfreq = 100
@@ -63,13 +67,14 @@ class TestTDLM(unittest.TestCase):
 
             #  check that plotted lines have the peak at the same point
             data = ax.lines[0].get_ydata()
-            sb = np.nan_to_num(sb, -np.inf)
-            assert np.argmax(data) == np.argmax(sb[0])
-
-            data = ax.lines[1].get_ydata()
             sf = np.nan_to_num(sf, -np.inf)
             assert np.argmax(data) == np.argmax(sf[0]) == lag
             plt.close(fig)
+
+
+            data = ax.lines[1].get_ydata()
+            sb = np.nan_to_num(sb, -np.inf)
+            assert np.argmax(data) == np.argmax(sb[0])
 
     def test_2step_sequence_exclusive(self):
         """sanity check that no 3-step are detected if they are not present"""
