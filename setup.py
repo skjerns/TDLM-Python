@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(name='tdlm-python',
-      version='0.4.1',
+      version='0.4.2',
       description='TDLM implementation for Python',
       long_description='Temporally delayed linear modelling quantifies sequential occurrences of events in time series and biosignals such as EEG or MEG',
       long_description_content_type="text/markdown",
