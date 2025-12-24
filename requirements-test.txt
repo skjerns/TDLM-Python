@@ -2,7 +2,6 @@ absl_py
 jax
 joblib
 mat73
-matlabengine
 matplotlib
 mne
 numba
