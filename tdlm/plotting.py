@@ -180,7 +180,7 @@ def plot_sequenceness(seq_fwd, seq_bkw, sfreq=100, ax=None, title=None,
 
 def plot_tval_distribution(t_obs, t_perms, bins=100, color=None,
                            thresholds=(0.95, 0.99), title='tvalue distribution',
-                           ax=None):
+                           alternative='greater', ax=None):
     """
     Plot a histogram of a permutation-based t-value distribution and mark the observed statistic
     with significance thresholds.
@@ -199,12 +199,21 @@ def plot_tval_distribution(t_obs, t_perms, bins=100, color=None,
         Title of the plot.
     ax : matplotlib.axes.Axes or None, optional
         Axes object to draw on. If None, a new figure and axes are created.
+    alternative : {'greater', 'less', 'two-sided'}, optional
+        Defines the alternative hypothesis for the p-value calculation.
+        'greater': p = proportion of permutations with value > t_obs.
+        'less': p = proportion of permutations with value < t_obs.
+        'two-sided': p = proportion of permutations with |value| > |t_obs|.
+        The default is 'greater'.
 
     Returns
     -------
     ax : matplotlib.axes.Axes
         Axes containing the plot.
     """
+    if alternative not in ('greater', 'less', 'two-sided'):
+        raise ValueError(f"alternative must be 'greater', 'less', or 'two-sided', got {alternative!r}")
+
     if ax is None:
         fig, ax = plt.subplots(1, 1)
 
@@ -214,16 +223,33 @@ def plot_tval_distribution(t_obs, t_perms, bins=100, color=None,
     ax = sns.histplot(t_perms, bins=bins, ax=ax, stat="percent", color=color)
 
     # Highlight the bin with red color
-    p = (t_obs<t_perms).mean()
+    if alternative == 'greater':
+        p = (t_obs < t_perms).mean()
+    elif alternative == 'less':
+        p = (t_obs > t_perms).mean()
+    elif alternative == 'two-sided':
+        p = (np.abs(t_obs) < np.abs(t_perms)).mean()
     ylims = ax.get_ylim()
     ax.vlines(t_obs, *ylims, label=f"observed\n{p=:.5f}".rstrip('0'),
               color='red')
 
     linestyle = cycler('linestyle', ["--",":", "-."])()
     for i, thresh in enumerate(thresholds):
-        p_thresh = np.quantile(t_perms, thresh)
-        ax.vlines(p_thresh, *ylims, label=f'p={np.round(1-thresh, 8)}',
-                  color='black', **next(linestyle))
+        ls = next(linestyle)
+        if alternative == 'greater':
+            p_thresh = np.quantile(t_perms, thresh)
+            ax.vlines(p_thresh, *ylims, label=f'p={np.round(1-thresh, 8)}',
+                      color='black', **ls)
+        elif alternative == 'less':
+            p_thresh = np.quantile(t_perms, 1 - thresh)
+            ax.vlines(p_thresh, *ylims, label=f'p={np.round(1-thresh, 8)}',
+                      color='black', **ls)
+        elif alternative == 'two-sided':
+            p_thresh_hi = np.quantile(t_perms, thresh)
+            p_thresh_lo = np.quantile(t_perms, 1 - thresh)
+            ax.vlines(p_thresh_hi, *ylims, label=f'p={np.round(1-thresh, 8)} (two-sided)',
+                      color='black', **ls)
+            ax.vlines(p_thresh_lo, *ylims, label='_nolegend_', color='black', **ls)
 
     # Add labels and title
     ax.set_title(title)
