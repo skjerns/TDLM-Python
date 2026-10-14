@@ -103,6 +103,20 @@ class TestTDLM(unittest.TestCase):
         assert sf1[0, lag] >  sf2[0, lag]*2, \
             '2step is not significantly smaller than 1step!'
 
+    def test_alpha_freq_state_relabeling(self):
+        """with alpha control, relabeling states must not change sequenceness,
+        also if max_lag is not a multiple of alpha_freq"""
+        rng = np.random.default_rng(0)
+        probas = rng.random([1000, 5])
+        tf = tdlm.seq2tf('ABCDE')
+        perm = rng.permutation(5)
+        for max_lag in [30, 35]:
+            sf, sb = tdlm.compute_1step(probas, tf, n_shuf=1, max_lag=max_lag, alpha_freq=10)
+            sf_p, sb_p = tdlm.compute_1step(probas[:, perm], tf[np.ix_(perm, perm)],
+                                            n_shuf=1, max_lag=max_lag, alpha_freq=10)
+            np.testing.assert_allclose(sf, sf_p)
+            np.testing.assert_allclose(sb, sb_p)
+
     def test_alpha_supression(self):
         pass
 # if True:
