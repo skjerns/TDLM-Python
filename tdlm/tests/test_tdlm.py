@@ -209,7 +209,7 @@ class TestAlphaControl(unittest.TestCase):
         t = np.arange(n_samples)
         for period in self.periods:
             for max_lag in self.max_lags:
-                for seq_lag in [3, 4]:
+                for seq_lag in [2, 3]:  # not P/2, else no echoes arise
                     with self.subTest(period=period, max_lag=max_lag, seq_lag=seq_lag):
                         rng = np.random.default_rng(period * 100 + max_lag + seq_lag)
                         base = rng.random(n_samples) + 0.8 * np.sin(2 * np.pi * t / period)
