@@ -117,8 +117,6 @@ class TestTDLM(unittest.TestCase):
             np.testing.assert_allclose(sf, sf_p)
             np.testing.assert_allclose(sb, sb_p)
 
-    def test_alpha_supression(self):
-        pass
 # if True:
 #         # create a very simple fake probability vector with ones and zeros
 #         tf = np.roll(np.eye(5), 1, axis=1)
@@ -140,6 +138,100 @@ class TestTDLM(unittest.TestCase):
 #         plotting.plot_sequenceness(sf, sb, which =['fwd'], ax=ax)
 #         plotting.plot_sequenceness(sf_a, sb_a, which =['fwd'], ax=ax, color='red', clear=False)
 #         plotting.plot_sequenceness(sf_a2, sb_a2, which =['fwd'], ax=ax, color='green', clear=False)
+
+
+def _oscillation(period, n_states=5, n_samples=6000, amp=1.0, phase_lag=2):
+    """sinusoid of a given period (in samples) for each state, each state
+    delayed by phase_lag samples relative to the previous one, such that the
+    oscillation itself creates (spurious) forward sequenceness"""
+    t = np.arange(n_samples)[:, None]
+    phases = -2 * np.pi * phase_lag * np.arange(n_states) / period
+    return amp * np.sin(2 * np.pi * t / period + phases)
+
+
+def _sequence(lag, n_states=5, n_samples=6000, rng=None):
+    """noise probabilities with a true A->B->C->... sequence at a given lag"""
+    rng = np.random.default_rng(rng)
+    base = rng.random(n_samples)
+    probas = rng.random([n_samples, n_states]) * 0.5
+    for i in range(n_states):
+        probas[:, i] += np.roll(base, i * lag)
+    return probas
+
+
+class TestAlphaControl(unittest.TestCase):
+    """check that alpha_freq controls for oscillations of that period, also
+    if max_lag is not a multiple of alpha_freq (see #15)"""
+
+    tf = tdlm.seq2tf('ABCDE')
+    periods = [7, 8, 10, 12]
+    max_lags = [30, 35, 40, 41]
+
+    def test_alpha_divides_phase_lagged_oscillation(self):
+        """an oscillation in the probabilities causes oscillating
+        sequenceness. Lags ilag, ilag+alpha_freq, ... end up in the same GLM
+        and are collinear for an oscillation of period alpha_freq, so the
+        oscillation is divided across the k lags of that GLM: each lag should
+        be ~1/k of the uncontrolled sequenceness. It cannot be removed
+        completely, as the data cannot tell which of the lags is the true one"""
+        for period in self.periods:
+            for max_lag in self.max_lags:
+                with self.subTest(period=period, max_lag=max_lag):
+                    rng = np.random.default_rng(period * 100 + max_lag)
+                    probas = rng.random([6000, 5]) + _oscillation(period)
+                    sf, _ = tdlm.compute_1step(probas, self.tf, n_shuf=1,
+                                               max_lag=max_lag)
+                    sf_a, _ = tdlm.compute_1step(probas, self.tf, n_shuf=1,
+                                                 max_lag=max_lag,
+                                                 alpha_freq=period)
+                    sf, sf_a = sf[0, 1:], sf_a[0, 1:]
+
+                    # plt.plot(np.transpose([sf, sf_a]))
+
+                    # number of lags in the GLM that each lag belongs to
+                    lags = np.arange(max_lag)
+                    k = np.array([len(range(l % period, max_lag, period))
+                                  for l in lags])
+                    expected = sf / k
+
+                    np.testing.assert_allclose(sf_a, expected, rtol=0,
+                                               atol=0.1 * np.abs(sf).max())
+                    assert np.corrcoef(sf_a, expected)[0, 1] > 0.98
+                    # overall oscillation amplitude goes down roughly by
+                    # the smallest number of lags in a GLM
+                    assert np.abs(sf_a).max() < np.abs(sf).max() / k.min() * 1.5
+
+    def test_alpha_removes_echoes(self):
+        """a true sequence at seq_lag where the underlying signal carries a
+        rhythm of period P creates echoes at seq_lag + P, seq_lag + 2P, ...
+        alpha control should remove these echoes and keep the true peak"""
+        n_samples = 6000
+        t = np.arange(n_samples)
+        for period in self.periods:
+            for max_lag in self.max_lags:
+                for seq_lag in [3, 4]:
+                    with self.subTest(period=period, max_lag=max_lag, seq_lag=seq_lag):
+                        rng = np.random.default_rng(period * 100 + max_lag + seq_lag)
+                        base = rng.random(n_samples) + 0.8 * np.sin(2 * np.pi * t / period)
+                        probas = rng.random([n_samples, 5]) * 0.5
+                        for i in range(5):
+                            probas[:, i] += np.roll(base, i * seq_lag)
+
+                        sf, _ = tdlm.compute_1step(probas, self.tf, n_shuf=1,
+                                                   max_lag=max_lag)
+                        sf_a, _ = tdlm.compute_1step(probas, self.tf, n_shuf=1,
+                                                     max_lag=max_lag,
+                                                     alpha_freq=period)
+                        echoes = np.arange(seq_lag + period, max_lag + 1, period)
+                        peak, peak_a = sf[0, seq_lag], sf_a[0, seq_lag]
+
+                        # without control there are clear echoes
+                        assert np.abs(sf[0, echoes]).min() > 0.25 * peak
+                        # with control they are gone, true peak is preserved
+                        assert np.abs(sf_a[0, echoes]).max() < 0.1 * peak_a
+                        assert peak_a > 0.8 * peak
+                        self.assertEqual(np.nanargmax(sf_a[0]), seq_lag)
+
 
 if __name__=='__main__':
     unittest.main()
