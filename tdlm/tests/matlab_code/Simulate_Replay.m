@@ -166,7 +166,7 @@ sb2 = cell2mat(sb2);
 
 
 save('simulate_replay_results.mat', 'uniquePerms','TF', 'preds', 'sf', 'sb', 'sf2', 'sb2',  '-v7.3');
-stop % dont plot, just save intermediate results
+return % dont plot, just save intermediate results
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 figure, 
 
