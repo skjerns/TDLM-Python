@@ -31,5 +31,12 @@ class TestPlotting(unittest.TestCase):
         seq_fwd[:, :, 0] = np.nan
         plotting.plot_sequenceness(seq_fwd, seq_fwd, which = ['fwd'])
 
+    def test_plotsignflip(self):
+        rng = np.random.default_rng(0)
+        seq_fwd = rng.normal(size=[10, 5, 31])
+        seq_fwd[:, :, 0] = np.nan
+        for rescale in [True, False]:
+            plotting.plot_sequenceness(seq_fwd, seq_fwd, plotsignflip=True, rescale=rescale)
+
 if __name__=='__main__':
     unittest.main()

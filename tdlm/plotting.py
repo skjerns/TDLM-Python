@@ -146,10 +146,12 @@ def plot_sequenceness(seq_fwd, seq_bkw, sfreq=100, ax=None, title=None,
             ax.hlines(-thresh_max, times[0], times[-1], linestyles='--', color=c, linewidth=1.5, alpha=0.6, label='_')
             ax.hlines(thresh_max, times[0], times[-1], linestyles='--', color=c, linewidth=1.5, alpha=0.6, label='_')
         if plotsignflip:
-            p, _, _, thresholds = signflit_test(sx[:, 0, :], n_perms=10000)
-            thresh_signflip = thresholds/div
-            ax.plot(times, -thresh_signflip, linestyle='--', color=c, linewidth=1, alpha=0.6, label='_')
-            ax.plot(times, thresh_signflip, linestyle='--', color=c, linewidth=1, alpha=0.6, label='_')
+            # mean sequenceness per lag needed to exceed the familywise max-t threshold
+            t_perms = signflit_test(sx[:, 0, :], n_perms=10000).t_perms
+            se = np.std(sx[:, 0, :], axis=0, ddof=1) / np.sqrt(len(sx))
+            thresh_signflip = np.quantile(t_perms, 0.95) * se / div
+            ax.plot(times, -thresh_signflip, linestyle=':', color=c, linewidth=1, alpha=0.6, label='_')
+            ax.plot(times, thresh_signflip, linestyle=':', color=c, linewidth=1, alpha=0.6, label='_')
         if plot95:
             thresh_95 = np.quantile(perm_maxes, 0.95)/div
             ax.hlines(thresh_95, times[0], times[-1], linestyles='-.', color=c, linewidth=1, alpha=0.4, label='_')
