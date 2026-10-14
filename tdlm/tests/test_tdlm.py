@@ -228,5 +228,45 @@ class TestAlphaControl(unittest.TestCase):
                         self.assertEqual(np.nanargmax(sf_a[0]), seq_lag)
 
 
+class TestCrossCorrelation(unittest.TestCase):
+
+    @staticmethod
+    def _lagged_probas(lag, n_states=5, length=6000, seed=0):
+        proba = np.random.default_rng(seed).random(length)
+        return np.stack([np.roll(proba, i*lag) for i in range(n_states)], axis=1)
+
+    def test_crosscorr_recovers_lag(self):
+        tf = tdlm.seq2tf('ABCDE')
+        for lag in [2, 3, 5]:
+            probas = self._lagged_probas(lag)
+            sf, sb = tdlm.sequenceness_crosscorr(probas, tf, n_shuf=10,
+                                                 max_lag=10, rng=0)
+            self.assertEqual(sf.shape, (10, 11))
+            self.assertEqual(np.nanargmax(sf[0]), lag)
+            # true sequence stands out against the shuffles
+            assert sf[0, lag] > np.nanmax(sf[1:, lag])
+
+    def test_crosscorr_min_lag(self):
+        tf = tdlm.seq2tf('ABCDE')
+        probas = self._lagged_probas(4)
+        sf, sb = tdlm.sequenceness_crosscorr(probas, tf, n_shuf=5, min_lag=2,
+                                             max_lag=10, rng=0)
+        sf_full, _ = tdlm.sequenceness_crosscorr(probas, tf, n_shuf=5,
+                                                 max_lag=10, rng=0)
+        assert np.isnan(sf[:, :2]).all()
+        np.testing.assert_allclose(sf[:, 2:10], sf_full[:, 2:10])
+        self.assertEqual(np.nanargmax(sf[0]), 4)
+
+    def test_crosscorr_rng_reproducible(self):
+        tf = tdlm.seq2tf('ABCDE')
+        probas = self._lagged_probas(3)
+        res1 = tdlm.sequenceness_crosscorr(probas, tf, n_shuf=20, max_lag=5, rng=42)
+        res2 = tdlm.sequenceness_crosscorr(probas, tf, n_shuf=20, max_lag=5, rng=42)
+        np.testing.assert_array_equal(res1.forward_sequenceness,
+                                      res2.forward_sequenceness)
+        np.testing.assert_array_equal(res1.backward_sequenceness,
+                                      res2.backward_sequenceness)
+
+
 if __name__=='__main__':
     unittest.main()
