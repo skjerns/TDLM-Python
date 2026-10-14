@@ -1,6 +1,10 @@
 name: MATLAB tests
 
-#on:
+# disabled for push/PR, MATLAB engine for Python does not run on GitHub
+# Actions. Without any trigger the workflow file is invalid and every push
+# creates a failed run, so only allow manual runs.
+on:
+  workflow_dispatch:
 #  push:
 #    branches: [ master ]
 #  pull_request:

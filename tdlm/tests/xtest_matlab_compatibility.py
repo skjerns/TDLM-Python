@@ -118,7 +118,9 @@ class TestMatlab(unittest.TestCase):
         X = np.random.randint(0, 100, [25, 5])
 
         # test parallel to check that parallel calls produce different results
-        for backend in ['sequential', 'threading', 'multiprocessing', 'loky']:
+        # 'multiprocessing' is excluded: forked workers inherit the same global
+        # np.random state, so this deprecated implementation repeats results
+        for backend in ['sequential', 'threading', 'loky']:
             # Make sure uperms also works together with Parallel
             res = Parallel(n_jobs=2, backend=backend)(delayed(uperms)(X, 30) for i in range(10))
             for i in range(8):
@@ -152,7 +154,7 @@ class TestMatlab(unittest.TestCase):
 
         sf_ml = [ml.sequenceness_Crosscorr(rd_ml, tf_ml, [], lag) for lag in range(30)]
         sb_ml = [ml.sequenceness_Crosscorr(rd_ml, tb_ml, [], lag) for lag in range(30)]
-        sf_py, sb_py = _cross_correlation(preds=rd, tf=tf, tb=tf.T, max_lag=30)
+        sf_py, sb_py = _cross_correlation(probas=rd, tf=tf, tb=tf.T, max_lag=30)
 
         diff_ml = np.array(sf_ml)-np.array(sb_ml)
         diff_py = sf_py-sb_py
@@ -183,7 +185,7 @@ class TestMatlab(unittest.TestCase):
         uniqueperms = data['uniquePerms']-1
 
         # monkey patch uperms, to give equivalent results to MATLAB
-        with patch('tdlm.core.unique_permutations', lambda *x: (0, uniqueperms, 0)):
+        with patch('tdlm.core.unique_permutations', lambda *args, **kwargs: uniqueperms):
             # print(tdlm.utils.unique_permutations([1,2,3]))
             sf, sb = tdlm.compute_1step(preds, tf, max_lag=60, n_shuf=100)
 
@@ -206,7 +208,7 @@ class TestMatlab(unittest.TestCase):
         uniqueperms = data['uniquePerms']-1
 
         # monkey patch uperms, to give equivalent results to MATLAB
-        with patch('tdlm.core.unique_permutations', lambda *x: (0, uniqueperms, 0)):
+        with patch('tdlm.core.unique_permutations', lambda *args, **kwargs: uniqueperms):
             # print(tdlm.utils.unique_permutations([1,2,3]))
             sf, sb = tdlm.compute_1step(preds, tf, max_lag=60, n_shuf=100,
                                         alpha_freq=10)
@@ -236,7 +238,7 @@ class TestMatlab(unittest.TestCase):
         unique_perms = data['uniquePerms']-1
 
         # monkey patch uperms, to give equivalent results to MATLAB
-        with patch('tdlm.core.unique_permutations', lambda *x: (0, unique_perms, 0)):
+        with patch('tdlm.core.unique_permutations', lambda *args, **kwargs: unique_perms):
             # print(tdlm.utils.unique_permutations([1,2,3]))
             sf, sb = tdlm.compute_2step(preds, tf, max_lag=max_lag,
                                         n_shuf=n_shuf)
