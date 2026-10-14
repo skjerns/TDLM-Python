@@ -117,6 +117,13 @@ class TestTDLM(unittest.TestCase):
             np.testing.assert_allclose(sf, sf_p)
             np.testing.assert_allclose(sb, sb_p)
 
+    def test_signflip_false_positive_rate(self):
+        """sign-flip test must keep the nominal false positive rate on pure noise, also at small n"""
+        rng = np.random.default_rng(0)
+        pvals = [tdlm.signflit_test(rng.normal(size=[10, 30]), n_perms=200, rng=rng).pvalue
+                 for _ in range(500)]
+        false_pos = np.mean(np.array(pvals) < 0.05)
+        assert false_pos < 0.08, f'sign-flip test is anti-conservative, {false_pos=:.3f}'
 # if True:
 #         # create a very simple fake probability vector with ones and zeros
 #         tf = np.roll(np.eye(5), 1, axis=1)
@@ -149,16 +156,6 @@ def _oscillation(period, n_states=5, n_samples=6000, amp=1.0, phase_lag=2):
     return amp * np.sin(2 * np.pi * t / period + phases)
 
 
-def _sequence(lag, n_states=5, n_samples=6000, rng=None):
-    """noise probabilities with a true A->B->C->... sequence at a given lag"""
-    rng = np.random.default_rng(rng)
-    base = rng.random(n_samples)
-    probas = rng.random([n_samples, n_states]) * 0.5
-    for i in range(n_states):
-        probas[:, i] += np.roll(base, i * lag)
-    return probas
-
-
 class TestAlphaControl(unittest.TestCase):
     """check that alpha_freq controls for oscillations of that period, also
     if max_lag is not a multiple of alpha_freq (see #15)"""
@@ -185,8 +182,6 @@ class TestAlphaControl(unittest.TestCase):
                                                  max_lag=max_lag,
                                                  alpha_freq=period)
                     sf, sf_a = sf[0, 1:], sf_a[0, 1:]
-
-                    # plt.plot(np.transpose([sf, sf_a]))
 
                     # number of lags in the GLM that each lag belongs to
                     lags = np.arange(max_lag)

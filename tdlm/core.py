@@ -113,7 +113,7 @@ def signflit_test(sx, n_perms=10000, rng=None):
 
 
     For each permutation, flip a random subset observations by -1 (i.e.
-    participant's sequenceness score for each time lag). Then, run a ttest for
+    participant's sequenceness score for each time lag). Then, run a t-test for
     all time lags separately and note the maximum t-value this permutation.
     As a result, we have a distribution of t-values, which we compare against
     the ground truth base t-value of the original data. This accounts for the
@@ -169,9 +169,12 @@ def signflit_test(sx, n_perms=10000, rng=None):
     perm_sums = flips @ sx  # (B, n_cols)
     perm_means = perm_sums / n  # broadcast
 
-    # Permutation "t" using fixed SE from original data
+    # Permutation t with the SE recomputed for each permutation, the SD changes
+    # with the signs. sum(x**2) is invariant to sign flips, so the SD is cheap:
+    # sum((x - m)**2) = sum(x**2) - n * m**2
     with np.errstate(invalid='ignore', divide='ignore'):
-        t_perm = perm_means / se  # (B, n_cols)
+        perm_sd = np.sqrt((np.sum(sx**2, axis=0) - n * perm_means**2) / (n - 1))
+        t_perm = perm_means / (perm_sd / np.sqrt(n))  # (B, n_cols)
 
     # Max across columns per permutation (one-sided)
     t_perms = np.nanmax(t_perm, axis=1)
