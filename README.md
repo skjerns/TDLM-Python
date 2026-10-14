@@ -58,7 +58,7 @@ Currently, three different flavours are implemented: Cross-correlation, 1- and 2
 
 ```python
 # 'classical' cross correlation approach as in Kurth-Nelson 2016
-tdlm.cross_correlation(preds, tf)
+tdlm.sequenceness_crosscorr(proba, tf)
 
 # 1-step TDLM, e.g. looking for transitions A->B, B->C, C->D independently, ...
 tdlm.compute_1step(proba, tf)

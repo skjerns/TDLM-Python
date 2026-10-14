@@ -188,31 +188,36 @@ def signflit_test(sx, n_perms=10000, rng=None):
 
 
 def sequenceness_crosscorr(probas, tf, tb=None, n_shuf=1000, min_lag=0, max_lag=50,
-                           alpha_freq=None):
+                           alpha_freq=None, rng=None):
+
+    probas = np.array(probas)
+    rng = np.random.default_rng(rng)
 
     n_states = probas.shape[-1]
     # unique permutations
-    unique_perms = unique_permutations(np.arange(1, n_states + 1), n_shuf)
+    unique_perms = unique_permutations(np.arange(n_states), n_shuf, rng=rng)
 
+    n_perms = len(unique_perms)  # this might be different to requested n_shuf!
 
     if tb is None:
         # backwards is transpose of forwards
         tb = tf.T
 
-    seq_fwd_corr = nan(n_shuf, max_lag + 1)  # forward cross-correlation
-    seq_bkw_corr = nan(n_shuf, max_lag + 1)  # backward cross-correlation
+    # column index corresponds to the time lag, lags outside of
+    # [min_lag, max_lag) are not computed and stay NaN
+    seq_fwd_corr = nan(n_perms, max_lag + 1)  # forward cross-correlation
+    seq_bkw_corr = nan(n_perms, max_lag + 1)  # backward cross-correlation
 
-    for i in range(n_shuf):
+    for i in range(n_perms):
         # select next unique permutation of transitions
         # index 0 is the non-shuffled original transition matrix
         rp = unique_perms[i, :]
         tf_perm = tf[rp, :][:, rp]
         tb_perm = tb[rp, :][:, rp]
-        seq_fwd_corr[i, :-1], seq_bkw_corr[i, :-1] = _cross_correlation(probas,
-                                                                        tf_perm,
-                                                                        tb_perm,
-                                                                        max_lag=max_lag,
-                                                                        min_lag=min_lag)
+        ff, fb = _cross_correlation(probas, tf_perm, tb_perm,
+                                    max_lag=max_lag, min_lag=min_lag)
+        seq_fwd_corr[i, min_lag:max_lag] = ff
+        seq_bkw_corr[i, min_lag:max_lag] = fb
     return tdlmresult(seq_fwd_corr, seq_bkw_corr)
 
 
