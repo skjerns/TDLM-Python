@@ -111,7 +111,7 @@ def signflit_test(sx, n_perms=10000, rng=None):
 
 
     For each permutation, flip a random subset observations by -1 (i.e.
-    participant's sequenceness score for each time lag). Then, run a ttest for
+    participant's sequenceness score for each time lag). Then, run a t-test for
     all time lags separately and note the maximum t-value this permutation.
     As a result, we have a distribution of t-values, which we compare against
     the ground truth base t-value of the original data. This accounts for the

@@ -107,12 +107,12 @@ class TestTDLM(unittest.TestCase):
         pass
 
     def test_signflip_false_positive_rate(self):
-        """sign-flip test must keep the nominal FPR on pure noise, also at small n"""
+        """sign-flip test must keep the nominal false positive rate on pure noise, also at small n"""
         rng = np.random.default_rng(0)
         pvals = [tdlm.signflit_test(rng.normal(size=[10, 30]), n_perms=200, rng=rng).pvalue
                  for _ in range(500)]
-        fpr = np.mean(np.array(pvals) < 0.05)
-        assert fpr < 0.08, f'sign-flip test is anti-conservative, {fpr=:.3f}'
+        false_pos = np.mean(np.array(pvals) < 0.05)
+        assert false_pos < 0.08, f'sign-flip test is anti-conservative, {false_pos=:.3f}'
 # if True:
 #         # create a very simple fake probability vector with ones and zeros
 #         tf = np.roll(np.eye(5), 1, axis=1)
