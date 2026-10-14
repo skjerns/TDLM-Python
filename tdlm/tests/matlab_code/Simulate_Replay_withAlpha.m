@@ -147,7 +147,7 @@ sb = cell2mat(sb);
 sf2 = cell2mat(sf2);
 sb2 = cell2mat(sb2);
 save('simulate_replay_withalpha_results.mat', 'uniquePerms','TF', 'preds', 'sf', 'sb', 'sf2', 'sb2',  '-v7.3');
-stop % dont continue figure creation, only save results
+return % dont continue figure creation, only save results
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 figure, 
 

@@ -171,7 +171,7 @@ end
 sf1 = cell2mat(sf1);
 sb1 = cell2mat(sb1)
 save('simulate_replay_longerlength_results.mat', 'sf1', 'sb1', 'TF', 'preds', 'nShuf', 'uniquePerms', 'maxLag', '-v7.3');
-stop % dont continue figure creation, only save results
+return % dont continue figure creation, only save results
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 

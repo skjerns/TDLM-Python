@@ -4,8 +4,13 @@ Created on Thu Apr 18 15:24:08 2024
 
 test if MATLAB original code gives same results as current implementation
 
-TEST IS DISABLED:
-MATLAB engine for Python does not run on GitHub Actions yet.
+The reference results are created by running
+`matlab -batch "addpath('tdlm/tests/matlab_code'); generate_references"`,
+which the MATLAB workflow does on every push/PR before running these tests.
+Without MATLAB, the tests run against the committed reference files.
+
+test_uperms calls MATLAB directly and needs the MATLAB engine for Python,
+which is not available on GitHub-hosted runners, it is skipped without it.
 
 @author: simon.kern
 """
@@ -27,7 +32,13 @@ from scipy import io
 from tqdm import tqdm
 from joblib.parallel import Parallel, delayed
 from matlab_funcs import get_matlab_engine, autoconvert
-import matlab
+
+try:
+    import matlab
+    import matlab.engine
+    HAS_MATLAB_ENGINE = True
+except ImportError:
+    HAS_MATLAB_ENGINE = False
 
 import tdlm
 from tdlm.utils import _unique_permutations_MATLAB as uperms
@@ -44,6 +55,7 @@ def uperms_matlab(*args, **kwargs):
 
 class TestMatlab(unittest.TestCase):
 
+    @unittest.skipUnless(HAS_MATLAB_ENGINE, 'MATLAB engine for Python not installed')
     def test_uperms(self):
         """"call uperms function from MATLAB for testing"""
         print('Starting matlab engine')
@@ -132,8 +144,8 @@ class TestMatlab(unittest.TestCase):
 
 
     def test_cross_correlation_matlab(self):
-        # the script will simultaneously call the matlab function as well as
-        # the python function and compare the results.
+        # compare against sequenceness_Crosscorr.m results for lags 0..29,
+        # created by generate_references.m
 
         # load testing data
         # the testfile can be created by inserting the line
@@ -142,21 +154,14 @@ class TestMatlab(unittest.TestCase):
 
         params = io.loadmat(f'{script_dir}/matlab_code/sequenceness_crosscorr_params.mat')
         tf = params['T']
-        T2 = []
         rd = params['rd']
 
-        ml = get_matlab_engine()
-        if not 'matlab_code' in ml.cd():
-            ml.cd(f'{script_dir}/matlab_code')
-        rd_ml = matlab.double(rd.tolist())
-        tf_ml = matlab.double(tf.tolist())
-        tb_ml = matlab.double(tf.T.tolist())
-
-        sf_ml = [ml.sequenceness_Crosscorr(rd_ml, tf_ml, [], lag) for lag in range(30)]
-        sb_ml = [ml.sequenceness_Crosscorr(rd_ml, tb_ml, [], lag) for lag in range(30)]
+        results = io.loadmat(f'{script_dir}/matlab_code/sequenceness_crosscorr_results.mat')
+        sf_ml = results['sf'].squeeze()
+        sb_ml = results['sb'].squeeze()
         sf_py, sb_py = _cross_correlation(probas=rd, tf=tf, tb=tf.T, max_lag=30)
 
-        diff_ml = np.array(sf_ml)-np.array(sb_ml)
+        diff_ml = sf_ml - sb_ml
         diff_py = sf_py-sb_py
 
         # plt.plot(diff_ml)
