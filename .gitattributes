@@ -1,0 +1,5 @@
+# normalize line endings: store text files with LF in the repository,
+# check out with the platform default (LF on Linux/macOS, CRLF on Windows)
+* text=auto
+
+*.mat binary
